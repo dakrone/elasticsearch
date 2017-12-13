@@ -150,7 +150,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new ResourceAlreadyExistsException(state.metaData().index(index).getIndex());
         }
         if (state.metaData().hasAlias(index)) {
-            throw new InvalidIndexNameException(index, "already exists as alias");
+            throw new ResourceAlreadyExistsException("index [" + index + "] already exists as alias");
         }
     }
 

@@ -157,7 +157,40 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
              * that we'll use when we try to run the requests. */
             final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
             Set<String> autoCreateIndices = new HashSet<>();
-            ClusterState state = clusterService.state();
+
+            ClusterStateObserver observer = new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext());
+            ClusterState state = observer.setAndGetObservedState();
+            ClusterBlockException blockException = state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+            if (blockException != null) {
+                if (blockException.retryable()) {
+                    logger.trace("cluster is blocked, scheduling a top-level retry", blockException);
+                    if (observer.isTimedOut()) {
+                        // we running as a last attempt after a timeout has happened. don't retry
+                        listener.onFailure(blockException);
+                        return;
+                    }
+                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            doExecute(task, bulkRequest, listener);
+                        }
+
+                        @Override
+                        public void onClusterServiceClose() {
+                            listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                        }
+
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            // Try one more time...
+                            doExecute(task, bulkRequest, listener);
+                        }
+                    });
+                } else {
+                    throw blockException;
+                }
+            }
+
             for (String index : indices) {
                 boolean shouldAutoCreate;
                 try {

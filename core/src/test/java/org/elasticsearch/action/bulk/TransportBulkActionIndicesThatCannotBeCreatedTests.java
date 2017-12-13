@@ -33,7 +33,10 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -97,8 +100,10 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     private void indicesThatCannotBeCreatedTestCase(Set<String> expected,
             BulkRequest bulkRequest, Function<String, Boolean> shouldAutoCreate) {
-        TransportBulkAction action = new TransportBulkAction(Settings.EMPTY, null, mock(TransportService.class), mock(ClusterService.class),
-                null, null, null, mock(ActionFilters.class), null, null) {
+        final ThreadPool threadPool = new TestThreadPool("test");
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        TransportBulkAction action = new TransportBulkAction(Settings.EMPTY, threadPool, mock(TransportService.class),
+                clusterService, null, null, null, mock(ActionFilters.class), null, null) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
@@ -122,5 +127,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
         };
         action.doExecute(null, bulkRequest, null);
+        threadPool.shutdown();
     }
 }
