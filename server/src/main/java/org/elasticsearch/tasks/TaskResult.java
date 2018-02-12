@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -127,7 +128,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
         if (error == null) {
             return emptyMap();
         }
-        return convertToMap(error, false).v2();
+        return convertToMap(error, false, LoggingDeprecationHandler.INSTANCE).v2();
     }
 
     /**
@@ -146,7 +147,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
         if (response == null) {
             return emptyMap();
         }
-        return convertToMap(response, false).v2();
+        return convertToMap(response, false, LoggingDeprecationHandler.INSTANCE).v2();
     }
 
     public boolean isCompleted() {

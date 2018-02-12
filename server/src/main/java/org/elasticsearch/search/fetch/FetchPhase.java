@@ -33,6 +33,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -258,7 +259,7 @@ public class FetchPhase implements SearchPhase {
                 getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, context.mapperService(), nestedObjectMapper);
 
         if (source != null) {
-            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
+            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true, LoggingDeprecationHandler.INSTANCE);
             Map<String, Object> sourceAsMap = tuple.v2();
 
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json

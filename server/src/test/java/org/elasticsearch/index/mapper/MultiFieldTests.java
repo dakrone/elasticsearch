@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -173,7 +174,8 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         Arrays.sort(multiFieldNames);
 
         Map<String, Object> sourceAsMap =
-            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(), true, builder.contentType()).v2();
+            XContentHelper.convertToMap(docMapper.mappingSource().compressedReference(),
+                true, builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue("type.properties.my_field.fields", sourceAsMap);
         assertThat(multiFields.size(), equalTo(multiFieldNames.length));

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -346,7 +347,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference source = builder.bytes();
-            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false,
+                xContentType, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
             assertEquals(0, sourceAsMap.size());
         }
         {
@@ -355,7 +357,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference source = builder.bytes();
-            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false,
+                xContentType, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());
         }

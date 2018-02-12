@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -234,7 +235,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 this.filter = null;
                 return this;
             }
-            return filter(XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true));
+            return filter(XContentHelper.convertToMap(XContentFactory.xContent(filter),
+                filter, true, LoggingDeprecationHandler.INSTANCE));
         }
 
         public Builder filter(Map<String, Object> filter) {
@@ -288,7 +290,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 if (binary) {
                     builder.field("filter", aliasMetaData.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetaData.filter().uncompressed()), true).v2());
+                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetaData.filter().uncompressed()),
+                        true, LoggingDeprecationHandler.INSTANCE).v2());
                 }
             }
             if (aliasMetaData.indexRouting() != null) {

@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -83,7 +84,8 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         BytesReference bytes = builder.endObject().bytes();
 
-        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
+        request.source(XContentHelper.convertToMap(bytes, true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
@@ -148,7 +150,8 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         BytesReference bytes = builder.endObject().bytes();
 
-        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
+        request.source(XContentHelper.convertToMap(bytes, true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());

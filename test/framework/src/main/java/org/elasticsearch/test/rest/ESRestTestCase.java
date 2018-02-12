@@ -41,6 +41,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -515,7 +516,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = client().performRequest(HttpGet.METHOD_NAME, endpoint);
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
-                response.getEntity().getContent(), false);
+                response.getEntity().getContent(), false, DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         assertNotNull(responseEntity);
         return responseEntity;
     }

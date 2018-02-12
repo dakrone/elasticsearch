@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -905,7 +906,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
 
         public Builder putMapping(String type, String source) throws IOException {
-            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
+            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source),
+                source, true, LoggingDeprecationHandler.INSTANCE)));
             return this;
         }
 
@@ -1112,7 +1114,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 if (binary) {
                     builder.value(cursor.value.source().compressed());
                 } else {
-                    builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), true).v2());
+                    builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()),
+                        true, LoggingDeprecationHandler.INSTANCE).v2());
                 }
             }
             builder.endArray();

@@ -372,7 +372,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
+        source(XContentHelper.convertToMap(source, false, xContentType, LoggingDeprecationHandler.INSTANCE).v2(),
+            LoggingDeprecationHandler.INSTANCE);
         return this;
     }
 

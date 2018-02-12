@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -96,7 +97,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return XContentHelper.convertToMap(config, true, xContentType).v2();
+        return XContentHelper.convertToMap(config, true, xContentType, LoggingDeprecationHandler.INSTANCE).v2();
     }
 
     // pkg-private for tests

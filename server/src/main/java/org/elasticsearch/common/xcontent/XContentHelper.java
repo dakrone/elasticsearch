@@ -53,7 +53,7 @@ public class XContentHelper {
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
             return XContentFactory.xContent(contentType).createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, compressedInput);
         } else {
-            return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
+            return XContentFactory.xContent(bytes).createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
         }
     }
 
@@ -77,19 +77,22 @@ public class XContentHelper {
 
     /**
      * Converts the given bytes into a map that is optionally ordered.
-     * @deprecated this method relies on auto-detection of content type. Use {@link #convertToMap(BytesReference, boolean, XContentType)}
+     * @deprecated this method relies on auto-detection of content type.
+     *             Use {@link #convertToMap(BytesReference, boolean, XContentType, DeprecationHandler)}
      *             instead with the proper {@link XContentType}
      */
     @Deprecated
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered,
+                                                                        DeprecationHandler deprecationHandler)
             throws ElasticsearchParseException {
-        return convertToMap(bytes, ordered, null);
+        return convertToMap(bytes, ordered, null, deprecationHandler);
     }
 
     /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      */
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType,
+                                                                        DeprecationHandler deprecationHandler)
         throws ElasticsearchParseException {
         try {
             final XContentType contentType;
@@ -105,7 +108,8 @@ public class XContentHelper {
                 input = bytes.streamInput();
             }
             contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), input, ordered));
+            return new Tuple<>(Objects.requireNonNull(contentType),
+                convertToMap(XContentFactory.xContent(contentType), input, ordered, deprecationHandler));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
@@ -115,9 +119,10 @@ public class XContentHelper {
      * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
      * error.
      */
-    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered,
+                                                   DeprecationHandler deprecationHandler) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, string)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, deprecationHandler, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -126,12 +131,14 @@ public class XContentHelper {
 
     /**
      * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
-     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean, DeprecationHandler)},
+     * this doesn't automatically uncompress the input.
      */
-    public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
+    public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered,
+                                                   DeprecationHandler deprecationHandler)
             throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, deprecationHandler, input)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 
@@ -167,7 +168,8 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(),
+            false, request.getXContentType(), LoggingDeprecationHandler.INSTANCE).v2();
         Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {

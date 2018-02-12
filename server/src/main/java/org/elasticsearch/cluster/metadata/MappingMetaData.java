@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -88,7 +89,8 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public MappingMetaData(CompressedXContent mapping) throws IOException {
         this.source = mapping;
-        Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
+        Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(),
+            true, LoggingDeprecationHandler.INSTANCE).v2();
         if (mappingMap.size() != 1) {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
@@ -156,7 +158,8 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
      * Converts the serialized compressed form of the mappings into a parsed map.
      */
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
-        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(),
+            true, LoggingDeprecationHandler.INSTANCE).v2();
         if (mapping.size() == 1 && mapping.containsKey(type())) {
             // the type name is the root value, reduce it
             mapping = (Map<String, Object>) mapping.get(type());

@@ -34,6 +34,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -111,7 +112,8 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
 
             ClusterHealthStatus healthStatus;
             try (InputStream is = response.getEntity().getContent()) { // <2>
-                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true); // <3>
+                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(),
+                    is, true, DeprecationHandler.THROW_UNSUPPORTED_OPERATION); // <3>
                 healthStatus = ClusterHealthStatus.fromString((String) map.get("status")); // <4>
             }
 

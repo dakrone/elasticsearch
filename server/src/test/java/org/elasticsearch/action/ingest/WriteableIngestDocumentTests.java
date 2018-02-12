@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -127,7 +128,8 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         builder.startObject();
         writeableIngestDocument.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
 
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");

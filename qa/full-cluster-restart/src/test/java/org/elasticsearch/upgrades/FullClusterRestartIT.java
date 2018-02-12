@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -633,7 +634,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false, DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
     }
 
     static String toStr(Response response) throws IOException {

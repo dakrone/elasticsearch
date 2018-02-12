@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -63,7 +64,8 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         GrokProcessorGetAction.Response response = new GrokProcessorGetAction.Response(TEST_PATTERNS);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Map<String, Object> converted = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+            Map<String, Object> converted = XContentHelper.convertToMap(builder.bytes(), false,
+                builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
             Map<String, String> patterns = (Map<String, String>) converted.get("patterns");
             assertThat(patterns.size(), equalTo(1));
             assertThat(patterns.get("PATTERN"), equalTo("foo"));

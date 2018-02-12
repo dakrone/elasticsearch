@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -275,7 +276,8 @@ public class MetaDataTests extends ESTestCase {
 
     public void testFindMappingsNoOpFilters() throws IOException {
         MappingMetaData originalMappingMetaData = new MappingMetaData("_doc",
-                XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, true));
+                XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM,
+                    true, DeprecationHandler.THROW_UNSUPPORTED_OPERATION));
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("index1")
@@ -317,7 +319,8 @@ public class MetaDataTests extends ESTestCase {
     public void testFindMappingsWithFilters() throws IOException {
         String mapping = FIND_MAPPINGS_TEST_ITEM;
         if (randomBoolean()) {
-            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, FIND_MAPPINGS_TEST_ITEM, false);
+            Map<String, Object> stringObjectMap = XContentHelper.convertToMap(JsonXContent.jsonXContent,
+                FIND_MAPPINGS_TEST_ITEM, false, DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
             Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("_doc");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(doc);

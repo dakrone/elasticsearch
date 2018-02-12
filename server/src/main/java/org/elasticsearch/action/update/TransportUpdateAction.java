@@ -46,6 +46,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -183,7 +184,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             if ((request.fetchSource() != null && request.fetchSource().fetchSource()) ||
                                     (request.fields() != null && request.fields().length > 0)) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
-                                        XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
+                                        XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType(), LoggingDeprecationHandler.INSTANCE);
                                 update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
                             } else {
                                 update.setGetResult(null);

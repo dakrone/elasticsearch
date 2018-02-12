@@ -65,6 +65,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -1082,8 +1083,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
-                    XContentHelper.convertToMap(actualJson.bytes(), false).v2(),
-                    XContentHelper.convertToMap(expectedJson.bytes(), false).v2());
+                    XContentHelper.convertToMap(actualJson.bytes(),
+                        false, XContentType.JSON, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2(),
+                    XContentHelper.convertToMap(expectedJson.bytes(),
+                        false, XContentType.JSON, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2());
             throw new AssertionError("Didn't match expected value:\n" + message);
         } catch (IOException e) {
             throw new AssertionError("IOException while building failure message", e);

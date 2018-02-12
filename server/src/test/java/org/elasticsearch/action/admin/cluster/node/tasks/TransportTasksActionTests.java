@@ -42,6 +42,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -797,6 +798,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         builder.endObject();
         builder.flush();
         logger.info(builder.string());
-        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        return XContentHelper.convertToMap(builder.bytes(), false,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
     }
 }

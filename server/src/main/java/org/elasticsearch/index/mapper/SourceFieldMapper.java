@@ -30,6 +30,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -243,7 +244,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (filter != null) {
             // we don't update the context source if we filter, we want to keep it as is...
             Tuple<XContentType, Map<String, Object>> mapTuple =
-                XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
+                XContentHelper.convertToMap(source,
+                    true, context.sourceToParse().getXContentType(), LoggingDeprecationHandler.INSTANCE);
             Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentType contentType = mapTuple.v1();

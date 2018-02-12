@@ -49,6 +49,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
@@ -296,7 +297,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
                 final BytesReference indexSourceAsBytes = updateIndexRequest.source();
                 final Tuple<XContentType, Map<String, Object>> sourceAndContent =
-                        XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
+                        XContentHelper.convertToMap(indexSourceAsBytes,
+                            true, updateIndexRequest.getContentType(), LoggingDeprecationHandler.INSTANCE);
                 updateResponse.setGetResult(UpdateHelper.extractGetResult(updateRequest, concreteIndex,
                                 indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
             }

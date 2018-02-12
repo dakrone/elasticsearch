@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -79,7 +80,8 @@ public class AliasValidator extends AbstractComponent {
         validateAliasStandalone(alias.name(), alias.indexRouting());
         if (Strings.hasLength(alias.filter())) {
             try {
-                XContentHelper.convertToMap(XContentFactory.xContent(alias.filter()), alias.filter(), false);
+                XContentHelper.convertToMap(XContentFactory.xContent(alias.filter()),
+                    alias.filter(), false, LoggingDeprecationHandler.INSTANCE);
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
             }

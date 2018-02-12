@@ -43,6 +43,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -382,7 +383,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
             return mappingMetaData;
         }
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(), true).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetaData.source().compressedReference(),
+            true, LoggingDeprecationHandler.INSTANCE).v2();
         Map<String, Object> mapping;
         if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetaData.type())) {
             mapping = (Map<String, Object>) sourceAsMap.get(mappingMetaData.type());

@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -83,7 +84,7 @@ public class SourceLookup implements Map {
     }
 
     public static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
-        return XContentHelper.convertToMap(source, false);
+        return XContentHelper.convertToMap(source, false, LoggingDeprecationHandler.INSTANCE);
     }
 
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {

@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -352,7 +353,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true, builder.contentType());
+        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj"}, Strings.EMPTY_ARRAY);
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
@@ -364,7 +366,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true, builder.contentType());
+        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"nonExistingField"});
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
@@ -377,7 +380,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true, builder.contentType());
+        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"obj.f1"});
 
         assertThat(filteredSource.size(), equalTo(1));
@@ -397,7 +401,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 .endObject();
 
         // implicit include
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true, builder.contentType());
+        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"*.obj2"});
 
         assertThat(filteredSource.size(), equalTo(1));
@@ -427,7 +432,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 .endObject()
                 .endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true, builder.contentType());
+        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(builder.bytes(), true,
+            builder.contentType(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"*.obj2"}, Strings.EMPTY_ARRAY);
 
         assertThat(filteredSource.size(), equalTo(1));
@@ -490,6 +496,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
     private static Map<String, Object> toMap(Builder test, XContentType xContentType, boolean humanReadable) throws IOException {
         ToXContentObject toXContent = (builder, params) -> test.apply(builder);
-        return convertToMap(toXContent(toXContent, xContentType, humanReadable), true, xContentType).v2();
+        return convertToMap(toXContent(toXContent, xContentType, humanReadable), true,
+            xContentType, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
     }
 }

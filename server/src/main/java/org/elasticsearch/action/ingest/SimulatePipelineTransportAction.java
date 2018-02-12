@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineStore;
 import org.elasticsearch.node.NodeService;
@@ -47,7 +48,8 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
 
     @Override
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
-        final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(),
+            false, request.getXContentType(), LoggingDeprecationHandler.INSTANCE).v2();
 
         final SimulatePipelineRequest.Parsed simulateRequest;
         try {

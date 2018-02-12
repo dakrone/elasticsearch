@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -366,7 +367,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
-        return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
+        return source(XContentHelper.convertToMap(xContentType.xContent(),
+            templateSource, true, LoggingDeprecationHandler.INSTANCE));
     }
 
     /**
@@ -387,7 +389,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
-        return source(XContentHelper.convertToMap(source, true, xContentType).v2());
+        return source(XContentHelper.convertToMap(source, true, xContentType, LoggingDeprecationHandler.INSTANCE).v2());
     }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {

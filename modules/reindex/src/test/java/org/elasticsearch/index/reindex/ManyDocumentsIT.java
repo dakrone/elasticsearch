@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -91,7 +92,8 @@ public class ManyDocumentsIT extends ESRestTestCase {
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(),
+            false, DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
     }
 
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -303,7 +304,8 @@ public class TermVectorsService  {
             String[] values = doc.getValues(field.name());
             documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
-        return generateTermVectors(indexShard, XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(),
+        return generateTermVectors(indexShard,
+            XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType(), LoggingDeprecationHandler.INSTANCE).v2(),
             documentFields, request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 

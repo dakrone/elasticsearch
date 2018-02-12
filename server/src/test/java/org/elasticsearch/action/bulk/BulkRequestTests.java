@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -71,7 +72,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         Map<String, Object> sourceMap = XContentHelper.convertToMap(((IndexRequest) bulkRequest.requests().get(0)).source(),
-            false, XContentType.JSON).v2();
+            false, XContentType.JSON, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
         assertEquals("value1", sourceMap.get("field1"));
     }
 

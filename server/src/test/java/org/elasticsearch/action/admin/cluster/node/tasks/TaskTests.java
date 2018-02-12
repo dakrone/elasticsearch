@@ -19,7 +19,9 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -40,7 +42,8 @@ public class TaskTests extends ESTestCase {
             "test_action", "test_description", null, startTime, runningTime, cancellable, TaskId.EMPTY_TASK_ID,
             Collections.singletonMap("foo", "bar"));
         String taskInfoString = taskInfo.toString();
-        Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)),
+            true, XContentType.JSON, DeprecationHandler.THROW_UNSUPPORTED_OPERATION).v2();
         assertEquals(((Number)map.get("id")).longValue(), taskId);
         assertEquals(map.get("type"), "test_type");
         assertEquals(map.get("action"), "test_action");
