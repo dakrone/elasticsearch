@@ -421,16 +421,16 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (getExplanation() != null && shard != null) {
             builder.field(Fields._SHARD, shard.getShardId());
-            builder.field(Fields._NODE, shard.getNodeIdText());
+            builder.field(Fields._NODE, shard.getNodeIdText().string());
         }
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
         if (type != null) {
-            builder.field(Fields._TYPE, type);
+            builder.field(Fields._TYPE, type.string());
         }
         if (id != null) {
-            builder.field(Fields._ID, id);
+            builder.field(Fields._ID, id.string());
         }
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);
@@ -906,7 +906,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (field != null) {
-                builder.field(FIELD, field);
+                builder.field(FIELD, field.string());
             }
             if (offset != -1) {
                 builder.field(OFFSET, offset);

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -77,7 +78,13 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
             builder.startObject();
             builder.field(Fields.INSERT_ORDER, pendingClusterTask.getInsertOrder());
             builder.field(Fields.PRIORITY, pendingClusterTask.getPriority());
-            builder.field(Fields.SOURCE, pendingClusterTask.getSource());
+            Text source = pendingClusterTask.getSource();
+            if (source.hasString()) {
+                builder.field(Fields.SOURCE, source.string());
+            } else {
+                builder.field(Fields.SOURCE).value(source.bytes());
+            }
+            builder.field(Fields.SOURCE, pendingClusterTask.getSource().string());
             builder.field(Fields.EXECUTING, pendingClusterTask.isExecuting());
             builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.getTimeInQueueInMillis());
             builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());

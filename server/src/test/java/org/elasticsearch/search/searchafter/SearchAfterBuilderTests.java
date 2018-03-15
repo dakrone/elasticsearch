@@ -100,7 +100,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         jsonBuilder.startObject();
         jsonBuilder.startArray("search_after");
         for (int i = 0; i < numSearchAfter; i++) {
-            int branch = randomInt(9);
+            int branch = randomInt(8);
             switch (branch) {
                 case 0:
                     jsonBuilder.value(randomInt());
@@ -127,9 +127,6 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     jsonBuilder.value(randomShort());
                     break;
                 case 8:
-                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
-                    break;
-                case 9:
                     jsonBuilder.nullValue();
                     break;
             }

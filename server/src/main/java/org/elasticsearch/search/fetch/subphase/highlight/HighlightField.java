@@ -150,7 +150,7 @@ public class HighlightField implements ToXContentFragment, Streamable {
         } else {
             builder.startArray();
             for (Text fragment : fragments) {
-                builder.value(fragment);
+                builder.value(fragment.string());
             }
             builder.endArray();
         }

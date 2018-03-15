@@ -587,7 +587,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(TEXT, text);
+                builder.field(TEXT, text.string());
                 builder.field(OFFSET, offset);
                 builder.field(LENGTH, length);
                 builder.startArray(OPTIONS);
@@ -708,9 +708,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder.field(TEXT.getPreferredName(), text);
+                    builder.field(TEXT.getPreferredName(), text.string());
                     if (highlighted != null) {
-                        builder.field(HIGHLIGHTED.getPreferredName(), highlighted);
+                        builder.field(HIGHLIGHTED.getPreferredName(), highlighted.string());
                     }
                     builder.field(SCORE.getPreferredName(), score);
                     if (collateMatch != null) {

@@ -347,24 +347,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertNull(parser.nextToken());
     }
 
-    public void testText() throws Exception {
-        assertResult("{'text':null}", () -> builder().startObject().field("text", (Text) null).endObject());
-        assertResult("{'text':''}", () -> builder().startObject().field("text", new Text("")).endObject());
-        assertResult("{'text':'foo bar'}", () -> builder().startObject().field("text", new Text("foo bar")).endObject());
-
-        final BytesReference random = new BytesArray(randomBytes());
-        XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
-
-        XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder));
-        assertSame(parser.nextToken(), Token.START_OBJECT);
-        assertSame(parser.nextToken(), Token.FIELD_NAME);
-        assertEquals(parser.currentName(), "text");
-        assertTrue(parser.nextToken().isValue());
-        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
-        assertSame(parser.nextToken(), Token.END_OBJECT);
-        assertNull(parser.nextToken());
-    }
-
     public void testReadableInstant() throws Exception {
         assertResult("{'instant':null}", () -> builder().startObject().field("instant", (ReadableInstant) null).endObject());
         assertResult("{'instant':null}", () -> builder().startObject().field("instant").value((ReadableInstant) null).endObject());

@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -107,7 +106,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(short[].class, (b, v) -> b.values((short[]) v));
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
-        writers.put(Text.class, (b, v) -> b.value((Text) v));
 
         WRITERS = Collections.unmodifiableMap(writers);
     }
@@ -628,26 +626,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         }
         generator.writeUTF8String(value.bytes, value.offset, value.length);
         return this;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Text
-    //////////////////////////////////
-
-    public XContentBuilder field(String name, Text value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder value(Text value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        } else if (value.hasString()) {
-            return value(value.string());
-        } else {
-            // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
-            // request to jackson to support InputStream as well?
-            return utf8Value(value.bytes().toBytesRef());
-        }
     }
 
     ////////////////////////////////////////////////////////////////////////////

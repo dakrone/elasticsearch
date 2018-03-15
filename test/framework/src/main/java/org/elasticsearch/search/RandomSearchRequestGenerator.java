@@ -278,7 +278,7 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.startObject();
                 jsonBuilder.startArray("search_from");
                 for (int i = 0; i < numSearchFrom; i++) {
-                    int branch = randomInt(8);
+                    int branch = randomInt(7);
                     switch (branch) {
                         case 0:
                             jsonBuilder.value(randomInt());
@@ -303,9 +303,6 @@ public class RandomSearchRequestGenerator {
                             break;
                         case 7:
                             jsonBuilder.value(randomShort());
-                            break;
-                        case 8:
-                            jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
                             break;
                     }
                 }

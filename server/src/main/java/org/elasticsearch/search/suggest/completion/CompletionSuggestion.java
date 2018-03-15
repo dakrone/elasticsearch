@@ -303,7 +303,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.field(TEXT.getPreferredName(), getText());
+                builder.field(TEXT.getPreferredName(), getText().string());
                 if (hit != null) {
                     hit.toInnerXContent(builder, params);
                 } else {
