@@ -103,6 +103,8 @@ import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexAction;
+import org.elasticsearch.action.admin.indices.freeze.TransportFreezeIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.TransportGetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
@@ -453,6 +455,7 @@ public class ActionModule extends AbstractModule {
         actions.register(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
+        actions.register(FreezeIndexAction.INSTANCE, TransportFreezeIndexAction.class);
         actions.register(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
         actions.register(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
