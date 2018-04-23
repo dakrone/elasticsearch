@@ -59,6 +59,9 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -348,6 +351,31 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param indices The name of the indices to close
      */
     OpenIndexRequestBuilder prepareOpen(String... indices);
+
+    /**
+     * Open an index based on the index name.
+     *
+     * @param request The close index request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    ActionFuture<FreezeIndexResponse> freeze(FreezeIndexRequest request);
+
+    /**
+     * Open an index based on the index name.
+     *
+     * @param request  The close index request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    void freeze(FreezeIndexRequest request, ActionListener<FreezeIndexResponse> listener);
+
+    /**
+     * Opens one or more indices based on their index name.
+     *
+     * @param indices The name of the indices to close
+     */
+    FreezeIndexRequestBuilder prepareFreeze(String... indices);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).

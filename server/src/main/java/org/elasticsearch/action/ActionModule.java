@@ -251,6 +251,7 @@ import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
+import org.elasticsearch.rest.action.admin.indices.RestFreezeIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAllAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAllMappingsAction;
@@ -578,6 +579,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteIndexAction(settings, restController));
         registerHandler.accept(new RestCloseIndexAction(settings, restController));
         registerHandler.accept(new RestOpenIndexAction(settings, restController));
+        registerHandler.accept(new RestFreezeIndexAction(settings, restController));
 
         registerHandler.accept(new RestUpdateSettingsAction(settings, restController));
         registerHandler.accept(new RestGetSettingsAction(settings, restController, indexScopedSettings, settingsFilter));

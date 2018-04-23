@@ -184,6 +184,10 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexAction;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
@@ -1422,6 +1426,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public void open(final OpenIndexRequest request, final ActionListener<OpenIndexResponse> listener) {
             execute(OpenIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public FreezeIndexRequestBuilder prepareFreeze(String... indices) {
+            return new FreezeIndexRequestBuilder(this, FreezeIndexAction.INSTANCE, indices);
+        }
+
+        @Override
+        public ActionFuture<FreezeIndexResponse> freeze(final FreezeIndexRequest request) {
+            return execute(FreezeIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void freeze(final FreezeIndexRequest request, final ActionListener<FreezeIndexResponse> listener) {
+            execute(FreezeIndexAction.INSTANCE, request, listener);
         }
 
         @Override

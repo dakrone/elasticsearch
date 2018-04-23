@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -45,11 +45,11 @@ public class RestFreezeIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
-        closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
-        closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
-        return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
+        FreezeIndexRequest freezeIndexRequest = new FreezeIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        freezeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeIndexRequest.masterNodeTimeout()));
+        freezeIndexRequest.timeout(request.paramAsTime("timeout", freezeIndexRequest.timeout()));
+        freezeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeIndexRequest.indicesOptions()));
+        return channel -> client.admin().indices().freeze(freezeIndexRequest, new RestToXContentListener<>(channel));
     }
 
 }
