@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -218,6 +220,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         deleteIndices(event); // also deletes shards of deleted indices
 
         removeUnallocatedIndices(event); // also removes shards of removed indices
+
+        freezeAndUnfreezeIndices(event);
 
         failMissingShards(state);
 
@@ -410,7 +414,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // once all shards are allocated
                     logger.debug("{} removing shard (not allocated)", shardId);
                     indexService.removeShard(shardId.id(), "removing shard (not allocated)");
-                } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) {
+                } else if (newShardRouting.isSameAllocation(currentRoutingEntry) == false) { // && and frozenness doesn't match
                     logger.debug("{} removing shard (stale allocation id, stale {}, new {})", shardId,
                         currentRoutingEntry, newShardRouting);
                     indexService.removeShard(shardId.id(), "removing shard (stale copy)");
@@ -502,6 +506,44 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private void freezeAndUnfreezeIndices(final ClusterChangedEvent event) {
+        if (event.metaDataChanged() == false) {
+            return;
+        }
+        ClusterState previousState = event.previousState();
+        ClusterState newState = event.state();
+
+        ImmutableOpenMap<String, IndexMetaData> previousIndexStates = previousState.metaData().getIndices();
+        for (ObjectObjectCursor<String, IndexMetaData> entry : newState.metaData().getIndices()) {
+            IndexMetaData previousMetaData = previousIndexStates.get(entry.key);
+            assert entry.value.getIndex() != null : "index shouldn't be null";
+
+            // Handle the transition from OPEN -> FROZEN (freeze)
+            if (previousMetaData != null &&
+                entry.value.getState() == IndexMetaData.State.FROZEN &&
+                previousMetaData.getState() == IndexMetaData.State.OPEN) {
+                // This index has transitioned from an OPEN state to a FROZEN state, so we need
+                // to re-initialize the engine as lazy
+                AllocatedIndex<? extends Shard> indexService = indicesService.indexService(entry.value.getIndex());
+                if (indexService != null) {
+                    indexService.freezeShards();
+                }
+            }
+
+            // Handle the transition from FROZEN -> OPEN (unfreeze)
+            if (previousMetaData != null &&
+                entry.value.getState() == IndexMetaData.State.OPEN &&
+                previousMetaData.getState() == IndexMetaData.State.FROZEN) {
+                // This index has transitioned from a FROZEN state to an OPEN state, so we need
+                // to re-initialize the shard with a regular engine
+                AllocatedIndex<? extends Shard> indexService = indicesService.indexService(entry.value.getIndex());
+                if (indexService != null) {
+                    indexService.unfreezeShards();
                 }
             }
         }
@@ -783,6 +825,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Removes shard with given id.
          */
         void removeShard(int shardId, String message);
+
+        /**
+         * Freeze all shards for the index
+         */
+        void freezeShards();
+
+        /**
+         * Unfreeze all shards for the index
+         */
+        void unfreezeShards();
     }
 
     public interface AllocatedIndices<T extends Shard, U extends AllocatedIndex<T>> extends Iterable<U> {

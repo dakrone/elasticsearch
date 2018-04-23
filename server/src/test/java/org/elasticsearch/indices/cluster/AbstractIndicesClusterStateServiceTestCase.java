@@ -306,6 +306,16 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void freezeShards() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void unfreezeShards() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Iterator<MockIndexShard> iterator() {
             return shards.values().iterator();
         }

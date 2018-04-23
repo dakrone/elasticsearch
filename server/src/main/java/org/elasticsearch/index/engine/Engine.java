@@ -1066,6 +1066,8 @@ public abstract class Engine implements Closeable {
             return searcher;
         }
 
+        public void releaseResources() throws IOException {}
+
         @Override
         public void close() {
             // Nothing to close here

@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.state;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,14 +37,18 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
@@ -67,8 +71,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testSimpleFreezeUnfreeze() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("test1").execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
@@ -97,8 +100,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeOneMissingIndex() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
         Exception e = expectThrows(IndexNotFoundException.class, () ->
                 client.admin().indices().prepareFreeze("test1", "test2").execute().actionGet());
         assertThat(e.getMessage(), is("no such index"));
@@ -107,8 +109,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeOneMissingIndexIgnoreMissing() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("test1", "test2")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
@@ -118,8 +119,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testUnfreezeOneMissingIndex() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
         Exception e = expectThrows(IndexNotFoundException.class, () ->
                 client.admin().indices().prepareUnfreeze("test1", "test2").execute().actionGet());
         assertThat(e.getMessage(), is("no such index"));
@@ -128,8 +128,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testUnfreezeOneMissingIndexIgnoreMissing() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test1", "test2")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
@@ -140,8 +139,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeUnfreezeMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         FreezeIndexResponse freezeIndexResponse1 = client.admin().indices().prepareFreeze("test1").execute().actionGet();
         assertThat(freezeIndexResponse1.isAcknowledged(), equalTo(true));
@@ -162,8 +160,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeUnfreezeWildcard() {
         Client client = client();
         createIndex("test1", "test2", "a");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("test*").execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
@@ -179,8 +176,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeUnfreezeAll() {
         Client client = client();
         createIndex("test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("_all").execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
@@ -195,8 +191,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeUnfreezeAllWildcard() {
         Client client = client();
         createIndex("test1", "test2", "test3");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("*").execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
@@ -239,8 +234,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testUnfreezeAlreadyUnfrozenIndex() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         //no problem if we try to unfreeze an index that's already in Unfrozen state
         UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
@@ -252,8 +246,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeAlreadyFrozenIndex() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         //freezing the index
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("test1").execute().actionGet();
@@ -269,8 +262,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testSimpleFreezeUnfreezeAlias() {
         Client client = client();
         createIndex("test1");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         IndicesAliasesResponse aliasesResponse = client.admin().indices()
             .prepareAliases().addAlias("test1", "test1-alias").execute().actionGet();
@@ -289,8 +281,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeUnfreezeAliasMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2");
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         IndicesAliasesResponse aliasesResponse1 = client.admin().indices()
             .prepareAliases().addAlias("test1", "test-alias").execute().actionGet();
@@ -325,15 +316,15 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         ensureGreen("test");
     }
 
-    private void assertIndexIsUnfrozen(String... indices) {
+    private static void assertIndexIsUnfrozen(String... indices) {
         checkIndexState(IndexMetaData.State.OPEN, indices);
     }
 
-    private void assertIndexIsFrozen(String... indices) {
+    private static void assertIndexIsFrozen(String... indices) {
         checkIndexState(IndexMetaData.State.FROZEN, indices);
     }
 
-    private void checkIndexState(IndexMetaData.State expectedState, String... indices) {
+    private static void checkIndexState(IndexMetaData.State expectedState, String... indices) {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
         for (String index : indices) {
             IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().indices().get(index);
@@ -356,7 +347,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type", mapping, XContentType.JSON));
-        ensureGreen();
+        waitForRelocation(ClusterHealthStatus.GREEN);
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
         for (int i = 0; i < docs ; i++) {
@@ -366,12 +357,12 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         if (randomBoolean()) {
             client().admin().indices().prepareFlush("test").setForce(true).execute().get();
         }
-        client().admin().indices().prepareFreeze("test").execute().get();
+        freeze("test");
 
         // check the index still contains the records that we indexed
-        client().admin().indices().prepareUnfreeze("test").execute().get();
+        unfreeze("test");
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch().setTypes("type")
+        SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.matchQuery("test", "init")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, docs);
@@ -379,7 +370,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
 
     public void testFreezeUnfreezeIndexWithBlocks() {
         createIndex("test");
-        ensureGreen("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
 
         int docs = between(10, 100);
         for (int i = 0; i < docs ; i++) {
@@ -391,15 +382,10 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
                 enableIndexBlock("test", blockSetting);
 
                 // Freezing an index is not blocked
-                FreezeIndexResponse freezeIndexResponse = client().admin().indices().prepareFreeze("test").execute().actionGet();
-                assertAcked(freezeIndexResponse);
-                assertIndexIsFrozen("test");
+                freeze("test");
 
                 // Unfreezing an index is not blocked
-                UnfreezeIndexResponse unfreezeIndexResponse = client().admin().indices().prepareUnfreeze("test").execute().actionGet();
-                assertAcked(unfreezeIndexResponse);
-                assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-                assertIndexIsUnfrozen("test");
+                unfreeze("test");
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -416,9 +402,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
             }
         }
 
-        FreezeIndexResponse freezeIndexResponse = client().admin().indices().prepareFreeze("test").execute().actionGet();
-        assertAcked(freezeIndexResponse);
-        assertIndexIsFrozen("test");
+        freeze("test");
 
         // Unfreezing an index is blocked
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_BLOCKS_METADATA)) {
@@ -435,6 +419,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
     public void testFreezeUsesFrozenThreadPool() throws Exception {
         Client client = client();
         createIndex("test1", "test2", "test3");
+        waitForRelocation(ClusterHealthStatus.GREEN);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
             builders.add(client.prepareIndex(randomFrom("test1", "test2", "test3"), "_doc", "" + i).
@@ -454,11 +439,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
                     .reduce(0, (count, comp) -> count + comp))
             .reduce(0, (count, comp) -> count + comp);
 
-        FreezeIndexResponse freezeIndexResponse1 = client.admin().indices().prepareFreeze("test1").execute().actionGet();
-        assertThat(freezeIndexResponse1.isAcknowledged(), equalTo(true));
-        FreezeIndexResponse freezeIndexResponse2 = client.admin().indices().prepareFreeze("test2").execute().actionGet();
-        assertThat(freezeIndexResponse2.isAcknowledged(), equalTo(true));
-        assertIndexIsFrozen("test1", "test2");
+        freeze("test1", "test2");
         assertIndexIsUnfrozen("test3");
 
         // Yay functional programming
@@ -473,8 +454,11 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
 
         assertThat(nonFrozenCompletedCounts, equalTo(preFrozenCompletedCounts));
 
-        resp = client.prepareSearch("test*").setQuery(QueryBuilders.matchQuery("foo", 7)).get();
-        assertSearchHits(resp, "7");
+        assertBusy(() -> {
+            SearchResponse frozenResponse = client.prepareSearch("test*")
+                .setQuery(QueryBuilders.matchQuery("foo", 7)).get();
+            assertSearchHits(frozenResponse, "7");
+        });
 
         long postFrozenCompletedCounts = client.admin().cluster().prepareNodesStats().clear().setThreadPool(true).get()
             .getNodes().stream()
@@ -489,15 +473,171 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         assertThat("expected post frozen threadpool completed count to be higher",
             postFrozenCompletedCounts, greaterThan(preFrozenCompletedCounts));
 
-        UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
-        assertThat(unfreezeIndexResponse1.isAcknowledged(), equalTo(true));
-        assertThat(unfreezeIndexResponse1.isShardsAcknowledged(), equalTo(true));
-        UnfreezeIndexResponse unfreezeIndexResponse2 = client.admin().indices().prepareUnfreeze("test2").execute().actionGet();
-        assertThat(unfreezeIndexResponse2.isAcknowledged(), equalTo(true));
-        assertThat(unfreezeIndexResponse2.isShardsAcknowledged(), equalTo(true));
+        unfreeze("test1", "test2");
         assertIndexIsUnfrozen("test1", "test2", "test3");
 
         resp = client.prepareSearch("test*").setQuery(QueryBuilders.matchQuery("foo", 7)).get();
         assertSearchHits(resp, "7");
+    }
+
+    public void testFreezeUnfreezeThenIndex() throws Exception {
+        Client client = client();
+        createIndex("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        int docs = between(1, 10);
+        IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
+        for (int i = 0; i < docs ; i++) {
+            builder[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
+        }
+        indexRandom(true, builder);
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+
+        freeze("test");
+        unfreeze("test");
+
+        ensureGreen("test");
+        client().prepareIndex("test", "type", "" + docs + 1).setSource("test", "foo").get();
+        refresh("test");
+        assertHitCount(client.prepareSearch("test").get(), docs + 1);
+    }
+
+    public void testSnapshotFrozenIndex() throws Exception {
+        Client client = client();
+        createIndex("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        int docs = between(10, 100);
+        IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
+        for (int i = 0; i < docs ; i++) {
+            builder[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
+        }
+        indexRandom(true, builder);
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+
+        freeze("test");
+
+        Path snapPath = randomRepoPath();
+        client.admin().cluster().preparePutRepository("fs").setType("fs")
+            .setSettings(Settings.builder().put("location", snapPath.toAbsolutePath())).get();
+        client.admin().cluster().prepareCreateSnapshot("fs", "snap1").setIndices("test").setWaitForCompletion(true).get();
+
+        unfreeze("test");
+
+        int moreDocs = between(2, 10);
+        IndexRequestBuilder[] builder2 = new IndexRequestBuilder[moreDocs];
+        for (int i = 0; i < moreDocs ; i++) {
+            builder2[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
+        }
+        indexRandom(true, builder2);
+
+        client.admin().indices().prepareClose("test").get();
+        client.admin().cluster().prepareRestoreSnapshot("fs", "snap1").setWaitForCompletion(true).get();
+        client.admin().indices().prepareOpen("test").get();
+        ensureGreen("test");
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+    }
+
+    public void testDeleteFrozenIndex() throws Exception {
+        Client client = client();
+        createIndex("test");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        freeze("test");
+
+        assertAcked(client.admin().indices().prepareDelete("test"));
+        // No weirdness with recreating the index with the same name
+        createIndex("test");
+    }
+
+    public void testFreezeUnfreezeDuringSearch() throws Exception {
+        Client client = client();
+        createIndex("test", "test2", "test3");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 50; i++) {
+            builders.add(client.prepareIndex(randomFrom("test1", "test2", "test3"), "_doc", "" + i).
+                setSource("{\"foo\": " + i + "}", XContentType.JSON));
+        }
+        indexRandom(true, builders);
+
+        final CountDownLatch searchStart = new CountDownLatch(1);
+        final CountDownLatch freezeStart = new CountDownLatch(1);
+        final AtomicBoolean keepSearching = new AtomicBoolean(true);
+        Thread searchingThread = new Thread(() -> {
+            try {
+                searchStart.await();
+            } catch (Exception e) {
+                fail("got exception while waiting to start searching: " + e);
+            }
+            logger.info("--> searching thread starting");
+            for (int i = 0; i < randomIntBetween(1, 10); i++) {
+                SearchResponse frozenResponse = client.prepareSearch("test*")
+                    .setQuery(QueryBuilders.matchQuery("foo", 7)).get();
+                assertSearchHits(frozenResponse, "7");
+            }
+            // Start freezing
+            freezeStart.countDown();
+            while (keepSearching.get()) {
+                SearchResponse frozenResponse = client.prepareSearch("test*")
+                    .setQuery(QueryBuilders.matchQuery("foo", 7)).get();
+                assertSearchHits(frozenResponse, "7");
+            }
+        });
+
+        searchingThread.start();
+        searchStart.countDown();
+        freezeStart.await();
+
+        freeze("test");
+
+        unfreeze("test");
+        ensureGreen("test");
+
+        SearchResponse resp = client.prepareSearch("test*").setQuery(QueryBuilders.matchQuery("foo", 45)).get();
+        assertSearchHits(resp, "45");
+
+        keepSearching.set(false);
+        searchingThread.join();
+    }
+
+    public void testFreezeAndIncreaseReplicas() throws Exception {
+        assumeTrue("need to be able to increment replicas at least to 1 but there are only " +
+                cluster().numDataNodes() + " data node(s)", cluster().numDataNodes() > 1);
+        Client client = client();
+        createIndex("test", Settings.builder().put("index.number_of_replicas", 0).build());
+        ensureGreen("test");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        int docs = randomIntBetween(20, 40);
+        for (int i = 0; i < docs; i++) {
+            builders.add(client.prepareIndex("test", "_doc", "" + i).setSource("{\"foo\": " + i + "}", XContentType.JSON));
+        }
+        indexRandom(false, builders);
+
+        freeze("test");
+
+        int replicaCount = randomIntBetween(1, maximumNumberOfReplicas());
+        logger.info("--> updating replicas to {}", replicaCount);
+        client.admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put("index.number_of_replicas", replicaCount).build()).get();
+        ensureGreen("test");
+
+        assertHitCount(client.prepareSearch("test").get(), docs);
+    }
+
+    private void freeze(String... indices) {
+        logger.info("--> freezing [{}]", Strings.arrayToCommaDelimitedString(indices));
+        FreezeIndexResponse freezeIndexResponse = client().admin().indices().prepareFreeze(indices).get();
+        assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertIndexIsFrozen(indices);
+    }
+
+    private void unfreeze(String... indices) {
+        logger.info("--> unfreezing [{}]", Strings.arrayToCommaDelimitedString(indices));
+        UnfreezeIndexResponse unfreezeIndexResponse = client().admin().indices().prepareUnfreeze(indices).execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfrozen(indices);
     }
 }

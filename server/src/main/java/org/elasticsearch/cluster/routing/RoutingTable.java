@@ -497,7 +497,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsNew(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN || indexMetaData.getState() == IndexMetaData.State.FROZEN) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                         .initializeAsNew(indexMetaData);
                 add(indexRoutingBuilder);
@@ -506,7 +506,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsRecovery(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN || indexMetaData.getState() == IndexMetaData.State.FROZEN) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                         .initializeAsRecovery(indexMetaData);
                 add(indexRoutingBuilder);
@@ -515,7 +515,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsFromDangling(IndexMetaData indexMetaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+            if (indexMetaData.getState() == IndexMetaData.State.OPEN || indexMetaData.getState() == IndexMetaData.State.FROZEN) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                         .initializeAsFromDangling(indexMetaData);
                 add(indexRoutingBuilder);
@@ -524,6 +524,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         public Builder addAsFromCloseToOpen(IndexMetaData indexMetaData) {
+            // TODO: should we support CLOSE -> FROZEN indices here?
             if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
                 IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                         .initializeAsFromCloseToOpen(indexMetaData);

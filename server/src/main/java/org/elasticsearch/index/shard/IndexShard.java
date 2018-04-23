@@ -83,6 +83,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.LazyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -1275,6 +1276,92 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().skipTranslogRecovery();
     }
 
+    public void freeze() {
+        if (state != IndexShardState.STARTED) {
+            throw new IllegalArgumentException("tried to freeze non-started shard, currently " + state);
+        }
+        synchronized (mutex) {
+            if (state != IndexShardState.STARTED) {
+                throw new IllegalArgumentException("tried to freeze non-started shard, currently " + state);
+            }
+
+            // Block until in-flight indexing is going on, trying to freeze the shard
+            indexShardOperationPermits.asyncBlockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    synchronized (mutex) {
+                        Engine engine = this.currentEngineReference.get();
+                        assert engine != null : "expected engine to exist but it doesn't";
+
+                        logger.trace("flushing and closing existing engine before freezing");
+                        engine.syncTranslog();
+                        engine.flush(true, true);
+                        engine.close();
+
+                        logger.trace("creating new lazy engine");
+                        final EngineConfig config = newEngineConfig();
+                        Engine lazyEngine = newLazyEngine(config);
+                        onNewEngine(engine);
+                        lazyEngine.syncTranslog();
+                        logger.trace("flushing new lazy engine for translog deletion");
+                        // Flush new lazy engine to get rid of translog(s)
+                        lazyEngine.flush();
+
+                        this.currentEngineReference.set(lazyEngine);
+
+                        // Sanity check the new engine, if these are not satisfied then peer recovery will fail
+                        final long localCkp = getLocalCheckpoint();
+                        final long globalCkp = getGlobalCheckpoint();
+                        if (localCkp != globalCkp) {
+                            throw new IllegalStateException("unable to freeze, local checkpoint (" + localCkp +
+                                ") != global checkpoint (" + globalCkp + ")");
+                        }
+                        final long translogOps = translogStats().estimatedNumberOfOperations();
+                        if (translogOps > 0) {
+                            throw new IllegalStateException("unable to freeze, there are " + translogOps +
+                                " translog operations when there should be 0");
+                        }
+                        logger.debug("freeze complete");
+                    }
+                },
+                e -> failShard("exception during index shard freezing", e));
+        }
+    }
+
+    public void unfreeze() throws IOException {
+        if (state != IndexShardState.STARTED) {
+            throw new IllegalArgumentException("tried to unfreeze non-started shard, currently " + state);
+        }
+        synchronized (mutex) {
+            if (state != IndexShardState.STARTED) {
+                throw new IllegalArgumentException("tried to unfreeze non-started shard, currently " + state);
+            }
+
+            // Ensure no indexing occurs while trying to unfreeze the shard
+            indexShardOperationPermits.asyncBlockOperations(
+                1, TimeUnit.MINUTES,
+                () -> {
+                    synchronized (mutex) {
+                        logger.trace("closing existing lazy engine before unfreezing");
+                        Engine lazyEngine = this.currentEngineReference.get();
+                        assert lazyEngine != null : "expected an existing engine";
+                        assert lazyEngine instanceof LazyEngine : "expected a lazy engine but was " + lazyEngine.getClass();
+                        lazyEngine.close();
+
+                        logger.trace("creating new engine for unfreezing");
+                        final EngineConfig config = newEngineConfig();
+                        Engine regularEngine = newEngine(config);
+                        onNewEngine(regularEngine);
+                        regularEngine.recoverFromTranslog();
+                        this.currentEngineReference.set(regularEngine);
+                        logger.debug("unfreeze complete");
+                    }
+                },
+                e -> failShard("exception during index shard unfreezing", e));
+        }
+    }
+
     private void innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
@@ -2096,7 +2183,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
             assert this.currentEngineReference.get() == null;
-            Engine engine = newEngine(config);
+            final Engine engine;
+            if (this.isFrozen()) {
+                engine = newLazyEngine(config);
+            } else {
+                engine = newEngine(config);
+            }
             onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
             // inside the callback are not visible. This one enforces happens-before
             this.currentEngineReference.set(engine);
@@ -2115,6 +2207,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected Engine newEngine(EngineConfig config) {
         return engineFactory.newReadWriteEngine(config);
+    }
+
+    protected Engine newLazyEngine(EngineConfig config) {
+        return engineFactory.newLazyEngine(config);
     }
 
     private static void persistMetadata(
@@ -2586,5 +2682,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
+    }
+
+    /**
+     * Return true if this shard is currently frozen, false otherwise
+     */
+    public boolean isFrozen() {
+        return indexSettings.getIndexMetaData().getState() == IndexMetaData.State.FROZEN;
     }
 }

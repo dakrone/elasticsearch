@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -59,6 +60,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.LazyEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -108,6 +111,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -724,5 +728,61 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
+    }
+
+    public void testFreezeUnfreeze() throws Exception {
+        IndexService indexService = createIndex("test");
+        ensureGreen();
+        assertNoSearchHits(client().prepareSearch().get());
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        IndexShard shard = indexService.getShard(0);
+
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertEquals(1, searcher.reader().numDocs());
+        }
+
+        Engine.Searcher persistentSearcher = null;
+        if (randomBoolean()) {
+            persistentSearcher = shard.acquireSearcher("test-2");
+        }
+
+        shard.freeze();
+
+        // Since freeze is asynchronous, we need to wait until the engine is actually replaced
+        assertBusy(() -> {
+            assertThat(shard.getEngineOrNull(), instanceOf(LazyEngine.class));
+        });
+
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertEquals(1, searcher.reader().numDocs());
+        }
+
+        if (persistentSearcher != null) {
+            IOUtils.close(persistentSearcher);
+            persistentSearcher = null;
+        }
+
+        if (randomBoolean()) {
+            persistentSearcher = shard.acquireSearcher("got while frozen");
+        }
+
+        expectThrows(Exception.class, () -> {
+            client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        });
+
+        shard.unfreeze();
+
+        // Wait until the engine is actually replaced with regular engine
+        assertBusy(() -> {
+            assertThat(shard.getEngineOrNull(), instanceOf(InternalEngine.class));
+        });
+
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            assertEquals(1, searcher.reader().numDocs());
+        }
+
+        IOUtils.close(persistentSearcher);
     }
 }

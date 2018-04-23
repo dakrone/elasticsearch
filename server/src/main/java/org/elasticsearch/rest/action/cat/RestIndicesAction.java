@@ -368,7 +368,18 @@ public class RestIndicesAction extends AbstractCatAction {
             final CommonStats totalStats = indexStats == null ? new CommonStats() : indexStats.getTotal();
 
             table.startRow();
-            table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
+            String stateColor;
+            if (state == IndexMetaData.State.OPEN || state == IndexMetaData.State.FROZEN) {
+                if (indexHealth == null) {
+                    stateColor = "red*";
+                } else {
+                    stateColor = indexHealth.getStatus().toString().toLowerCase(Locale.ROOT);
+                }
+            } else {
+                // Index is closed, it has no red/yellow/green color state
+                stateColor = null;
+            }
+            table.addCell(stateColor);
             table.addCell(state.toString().toLowerCase(Locale.ROOT));
             table.addCell(indexName);
             table.addCell(index.getUUID());

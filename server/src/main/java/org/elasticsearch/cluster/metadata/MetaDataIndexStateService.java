@@ -321,7 +321,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                         return currentState;
                     }
 
-                    logger.info("unfreezeing indices {}", indicesAsString);
+                    logger.info("unfreezing indices {}", indicesAsString);
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());

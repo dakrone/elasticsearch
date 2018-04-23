@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -291,6 +292,31 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    @Override
+    public synchronized void freezeShards() {
+        for (Map.Entry<Integer, IndexShard> shard : this.shards.entrySet()) {
+            shard.getValue().freeze();
+        }
+    }
+
+    @Override
+    public synchronized void unfreezeShards() {
+        ElasticsearchException maybeException = null;
+        for (Map.Entry<Integer, IndexShard> shard : this.shards.entrySet()) {
+            try {
+                shard.getValue().unfreeze();
+            } catch (IOException e) {
+                if (maybeException == null) {
+                    maybeException = new ElasticsearchException(e);
+                } else {
+                    maybeException.addSuppressed(e);
+                }
+            }
+        }
+        if (maybeException != null) {
+            throw maybeException;
+        }
+    }
 
     public String indexUUID() {
         return indexSettings.getUUID();
