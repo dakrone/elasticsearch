@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.freeze.FreezeIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -240,7 +241,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 Set<IndexMetaData> indicesToFreeze = new HashSet<>();
                 for (Index index : request.indices()) {
                     final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
-                    if (indexMetaData.getState() != IndexMetaData.State.FROZEN) {
+                    // Only open indices may be frozen
+                    if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
                         indicesToFreeze.add(indexMetaData);
                     }
                 }
@@ -254,7 +256,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 // Check if index closing conflicts with any running snapshots
                 // TODO: we might not need to check this for freezing
                 SnapshotsService.checkIndexClosing(currentState, indicesToFreeze);
-                logger.info("freezing indices [{}]", indicesAsString);
+                logger.info("freezing indices {}", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
@@ -273,4 +275,50 @@ public class MetaDataIndexStateService extends AbstractComponent {
         });
     }
 
+    public void thawIndex(final ThawIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        if (request.indices() == null || request.indices().length == 0) {
+            throw new IllegalArgumentException("Index name is required");
+        }
+
+        final String indicesAsString = Arrays.toString(request.indices());
+        clusterService.submitStateUpdateTask("thaw-indices " + indicesAsString,
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+
+            @Override
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                Set<IndexMetaData> indicesToThaw = new HashSet<>();
+                for (Index index : request.indices()) {
+                    final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
+                    if (indexMetaData.getState() == IndexMetaData.State.FROZEN) {
+                        indicesToThaw.add(indexMetaData);
+                    }
+                }
+
+                if (indicesToThaw.isEmpty()) {
+                    return currentState;
+                }
+
+                logger.info("thawing indices {}", indicesAsString);
+
+                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
+                        .blocks(currentState.blocks());
+                for (IndexMetaData openIndexMetadata : indicesToThaw) {
+                    final String indexName = openIndexMetadata.getIndex().getName();
+                    mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.OPEN));
+                    blocksBuilder.removeIndexBlock(indexName, INDEX_FROZEN_BLOCK);
+                }
+
+                ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
+
+                // no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
+                return updatedState;
+            }
+        });
+    }
 }
