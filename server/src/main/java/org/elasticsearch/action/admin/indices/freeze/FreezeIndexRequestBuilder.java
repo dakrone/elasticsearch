@@ -26,7 +26,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Builder for freeze index request
  */
-public class FreezeIndexRequestBuilder extends AcknowledgedRequestBuilder<FreezeIndexRequest, FreezeIndexResponse, FreezeIndexRequestBuilder> {
+public class FreezeIndexRequestBuilder extends
+    AcknowledgedRequestBuilder<FreezeIndexRequest, FreezeIndexResponse, FreezeIndexRequestBuilder> {
 
     public FreezeIndexRequestBuilder(ElasticsearchClient client, FreezeIndexAction action) {
         super(client, action, new FreezeIndexRequest());

@@ -55,7 +55,8 @@ public class TransportFreezeIndexAction extends TransportMasterNodeAction<Freeze
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                      ClusterSettings clusterSettings, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
-        super(settings, FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, FreezeIndexRequest::new);
+        super(settings, FreezeIndexAction.NAME, transportService, clusterService,
+                threadPool, actionFilters, indexNameExpressionResolver, FreezeIndexRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -79,11 +80,13 @@ public class TransportFreezeIndexAction extends TransportMasterNodeAction<Freeze
 
     @Override
     protected ClusterBlockException checkBlock(FreezeIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final FreezeIndexRequest request, final ClusterState state, final ActionListener<FreezeIndexResponse> listener) {
+    protected void masterOperation(final FreezeIndexRequest request, final ClusterState state,
+                                   final ActionListener<FreezeIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new FreezeIndexResponse(true));
