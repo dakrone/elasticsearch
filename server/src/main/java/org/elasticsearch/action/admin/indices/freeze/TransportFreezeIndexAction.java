@@ -96,19 +96,18 @@ public class TransportFreezeIndexAction extends TransportMasterNodeAction<Freeze
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(concreteIndices);
 
-        listener.onResponse(new FreezeIndexResponse(true));
-        // indexStateService.freezeIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        indexStateService.freezeIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
-        //     @Override
-        //     public void onResponse(ClusterStateUpdateResponse response) {
-        //         listener.onResponse(new FreezeIndexResponse(response.isAcknowledged()));
-        //     }
+            @Override
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new FreezeIndexResponse(response.isAcknowledged()));
+            }
 
-        //     @Override
-        //     public void onFailure(Exception t) {
-        //         logger.debug(() -> new ParameterizedMessage("failed to freeze indices [{}]", (Object) concreteIndices), t);
-        //         listener.onFailure(t);
-        //     }
-        // });
+            @Override
+            public void onFailure(Exception t) {
+                logger.debug(() -> new ParameterizedMessage("failed to freeze indices [{}]", (Object) concreteIndices), t);
+                listener.onFailure(t);
+            }
+        });
     }
 }

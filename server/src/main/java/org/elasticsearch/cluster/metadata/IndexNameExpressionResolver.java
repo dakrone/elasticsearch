@@ -213,7 +213,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                             concreteIndices.add(index.getIndex());
                         }
                     }
-                } else if (index.getState() == IndexMetaData.State.OPEN) {
+                } else if (index.getState() == IndexMetaData.State.OPEN || index.getState() == IndexMetaData.State.FROZEN) {
                     concreteIndices.add(index.getIndex());
                 } else {
                     throw new IllegalStateException("index state [" + index.getState() + "] not supported");

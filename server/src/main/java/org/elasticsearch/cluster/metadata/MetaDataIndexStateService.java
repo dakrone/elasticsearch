@@ -221,7 +221,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
         });
     }
 
-    public void freezIndex(final FreezeIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void freezeIndex(final FreezeIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
