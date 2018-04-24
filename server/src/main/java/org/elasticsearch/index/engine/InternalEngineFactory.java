@@ -24,4 +24,9 @@ public class InternalEngineFactory implements EngineFactory {
     public Engine newReadWriteEngine(EngineConfig config) {
         return new InternalEngine(config);
     }
+
+    @Override
+    public Engine newLazyEngine(EngineConfig config) {
+        return new LazyEngine(config);
+    }
 }

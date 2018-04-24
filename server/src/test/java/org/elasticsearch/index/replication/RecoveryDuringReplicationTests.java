@@ -718,6 +718,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
+        public Engine newLazyEngine(EngineConfig config) {
+            throw new UnsupportedOperationException("not used");
+        }
+
+        @Override
         public void close() throws Exception {
             releaseLatchedIndexers();
         }

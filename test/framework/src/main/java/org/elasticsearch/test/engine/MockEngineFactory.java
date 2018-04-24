@@ -35,4 +35,9 @@ public final class MockEngineFactory implements EngineFactory {
     public Engine newReadWriteEngine(EngineConfig config) {
         return new MockInternalEngine(config, wrapper);
     }
+
+    @Override
+    public Engine newLazyEngine(EngineConfig config) {
+        return new MockInternalEngine(config, wrapper);
+    }
 }

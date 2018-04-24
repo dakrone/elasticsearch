@@ -28,10 +28,12 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
@@ -50,18 +52,30 @@ public class LazyEngine extends Engine {
     private final IndexCommit lastCommit;
     private SegmentInfos lastCommittedSegmentInfos;
 
-    protected LazyEngine(EngineConfig engineConfig) throws IOException {
+    protected LazyEngine(EngineConfig engineConfig) {
         super(engineConfig);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
             engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
             engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
         );
-        lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-        this.translog =  openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
-        assert translog.getGeneration() != null;
-        List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
-        lastCommit = indexCommits.get(indexCommits.size()-1);
-        searcherFactory = new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService());
+        try {
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            this.translog =  openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
+            assert translog.getGeneration() != null;
+            List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
+            lastCommit = indexCommits.get(indexCommits.size()-1);
+            searcherFactory = new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService());
+        } catch (IOException | TranslogCorruptedException e) {
+            throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+        } catch (AssertionError e) {
+            // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
+            // randomly throw FNFE/NSFE can also hit this:
+            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                throw new EngineCreationFailureException(shardId, "failed to create engine", e);
+            } else {
+                throw e;
+            }
+        }
     }
 
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {

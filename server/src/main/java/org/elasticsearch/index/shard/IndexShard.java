@@ -1271,6 +1271,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().skipTranslogRecovery();
     }
 
+    public void freeze() throws IOException {
+        if (state != IndexShardState.STARTED) {
+            throw new IllegalArgumentException("tried to freeze non-started shard, currently " + state);
+        }
+        synchronized (mutex) {
+            if (state != IndexShardState.STARTED) {
+                throw new IllegalArgumentException("tried to freeze non-started shard, currently " + state);
+            }
+            Engine engine = this.currentEngineReference.get();
+            assert engine != null;
+            logger.trace("flushing and closing existing engine before freezing");
+            engine.flushAndClose();
+
+            final EngineConfig config = newEngineConfig();
+            Engine lazyEngine = newLazyEngine(config);
+            // TODO: do we need to call onNewEngine for lazy engines?
+            // onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
+            // inside the callback are not visible. This one enforces happens-before
+            this.currentEngineReference.set(lazyEngine);
+        }
+    }
+
     private void innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
@@ -2111,6 +2133,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected Engine newEngine(EngineConfig config) {
         return engineFactory.newReadWriteEngine(config);
+    }
+
+    protected Engine newLazyEngine(EngineConfig config) {
+        return engineFactory.newLazyEngine(config);
     }
 
     private static void persistMetadata(
