@@ -74,7 +74,7 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metadata).build();
-        List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
+        List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Build.CURRENT,
             discoveryNode, null, null, null, null,
             null, null, null, null, null, null));
         List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,

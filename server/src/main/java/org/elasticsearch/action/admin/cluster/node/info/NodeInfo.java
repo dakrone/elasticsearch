@@ -23,11 +23,17 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.NodeInformation;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -37,13 +43,46 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Node information (static, does not change over time).
  */
-public class NodeInfo extends BaseNodeResponse {
+public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
 
-    private Version version;
+    // Does not parse inner id
+    private static final ObjectParser<NodeInfoBuilder, String> PARSER = new ObjectParser<>("node_info", NodeInfoBuilder::new);
+
+    static {
+        PARSER.declareString((n, v) -> n.name = v, Fields.NAME);
+        PARSER.declareString((n, v) -> n.transportAddress = v, Fields.TRANSPORT_ADDRESS);
+        PARSER.declareString((n, v) -> n.host = v, Fields.HOST);
+        PARSER.declareString((n, v) -> n.ipAddress = v, Fields.IP);
+        PARSER.declareString((n, v) -> n.version = v, Fields.VERSION);
+        PARSER.declareStringArray((n, v) -> n.roles = v, Fields.ROLES);
+        PARSER.declareObject((n, v) -> n.attributes = v, (p, c) -> p.mapStrings(), Fields.ATTRIBUTES);
+        PARSER.declareField((n, v) -> n.totalIndexingBuffer = v, (p, c) -> p.longValue(), Fields.TOTAL_INDEXING_BUFFER_BYTES,
+            ObjectParser.ValueType.LONG);
+        PARSER.declareField((n, v) -> n.settings = v, (p, c) -> Settings.fromXContent(p), Fields.SETTINGS, ObjectParser.ValueType.OBJECT);
+    }
+
+    static final class Fields {
+        static final ParseField NAME = new ParseField("name");
+        static final ParseField TRANSPORT_ADDRESS = new ParseField("transport_address");
+        static final ParseField HOST = new ParseField("host");
+        static final ParseField IP = new ParseField("ip");
+        static final ParseField VERSION = new ParseField("version");
+        static final ParseField TOTAL_INDEXING_BUFFER = new ParseField("total_indexing_buffer");
+        static final ParseField TOTAL_INDEXING_BUFFER_BYTES = new ParseField("total_indexing_buffer_in_bytes");
+        static final ParseField ROLES = new ParseField("roles");
+        static final ParseField ATTRIBUTES = new ParseField("attributes");
+        static final ParseField SETTINGS = new ParseField("settings");
+    }
+
+
     private Build build;
 
     @Nullable
@@ -79,12 +118,10 @@ public class NodeInfo extends BaseNodeResponse {
     public NodeInfo() {
     }
 
-    public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
-                    @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins,
-                    @Nullable IngestInfo ingest, @Nullable ByteSizeValue totalIndexingBuffer) {
+    public NodeInfo(Build build, DiscoveryNode node, @Nullable Settings settings, @Nullable OsInfo os, @Nullable ProcessInfo process,
+                    @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable TransportInfo transport, @Nullable HttpInfo http,
+                    @Nullable PluginsAndModules plugins, @Nullable IngestInfo ingest, @Nullable ByteSizeValue totalIndexingBuffer) {
         super(node);
-        this.version = version;
         this.build = build;
         this.settings = settings;
         this.os = os;
@@ -96,6 +133,43 @@ public class NodeInfo extends BaseNodeResponse {
         this.plugins = plugins;
         this.ingest = ingest;
         this.totalIndexingBuffer = totalIndexingBuffer;
+    }
+
+    private NodeInfo(Build build, NodeInformation node, @Nullable Settings settings, @Nullable OsInfo os, @Nullable ProcessInfo process,
+                     @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable TransportInfo transport, @Nullable HttpInfo http,
+                     @Nullable PluginsAndModules plugins, @Nullable IngestInfo ingest, @Nullable ByteSizeValue totalIndexingBuffer) {
+        this(build, node.toDiscoveryNode(), settings, os, process, jvm, threadPool, transport, http, plugins, ingest, totalIndexingBuffer);
+    }
+
+    private static class NodeInfoBuilder {
+        private String id;
+        private String name;
+        private String transportAddress;
+        private String host;
+        private String ipAddress;
+        private String version;
+        private List<String> roles;
+        private Map<String, String> attributes;
+        private long totalIndexingBuffer;
+        private Build build;
+        private Settings settings;
+        private OsInfo os;
+        private ProcessInfo process;
+        private JvmInfo jvm;
+        private ThreadPoolInfo threadPool;
+        private TransportInfo transport;
+        private HttpInfo http;
+        private PluginsAndModules plugins;
+        private IngestInfo ingest;
+
+        NodeInfoBuilder() { }
+
+        public NodeInfo build() {
+            NodeInformation ni = new NodeInformation(id, name, host, ipAddress, transportAddress,
+                new HashSet<>(roles), attributes, Version.fromString(version));
+            return new NodeInfo(build, ni, settings, os, process, jvm, threadPool, transport,
+                http, plugins, ingest, new ByteSizeValue(totalIndexingBuffer));
+        }
     }
 
     /**
@@ -110,7 +184,7 @@ public class NodeInfo extends BaseNodeResponse {
      * The current ES version
      */
     public Version getVersion() {
-        return version;
+        return getNode().getVersion();
     }
 
     /**
@@ -191,7 +265,9 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        version = Version.readVersion(in);
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            Version.readVersion(in);
+        }
         build = Build.readBuild(in);
         if (in.readBoolean()) {
             totalIndexingBuffer = new ByteSizeValue(in.readLong());
@@ -214,7 +290,9 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(version.id);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(getVersion().id);
+        }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
@@ -236,5 +314,83 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(http);
         out.writeOptionalWriteable(plugins);
         out.writeOptionalWriteable(ingest);
+    }
+
+    public NodeInfo fromXContent(XContentParser parser) throws IOException {
+        parser.nextToken();
+        String id = parser.text();
+        parser.nextToken();
+        parser.nextToken();
+        NodeInfoBuilder builder = PARSER.apply(parser, null);
+        builder.id = id;
+        return builder.build();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(getNode().getId());
+
+        builder.field(Fields.NAME.getPreferredName(), getNode().getName());
+        builder.field(Fields.TRANSPORT_ADDRESS.getPreferredName(), getNode().getAddress().toString());
+        builder.field(Fields.HOST.getPreferredName(), getNode().getHostName());
+        builder.field(Fields.IP.getPreferredName(), getNode().getHostAddress());
+
+        builder.field(Fields.VERSION.getPreferredName(), getVersion());
+        builder.field("build_flavor", getBuild().flavor().displayName());
+        builder.field("build_type", getBuild().type().displayName());
+        builder.field("build_hash", getBuild().shortHash());
+        if (getTotalIndexingBuffer() != null) {
+            builder.humanReadableField(Fields.TOTAL_INDEXING_BUFFER.getPreferredName(),
+                Fields.TOTAL_INDEXING_BUFFER_BYTES.getPreferredName(), getTotalIndexingBuffer());
+        }
+
+        builder.startArray(Fields.ROLES.getPreferredName());
+        for (DiscoveryNode.Role role : getNode().getRoles()) {
+            builder.value(role.getRoleName());
+        }
+        builder.endArray();
+
+        if (!getNode().getAttributes().isEmpty()) {
+            builder.startObject(Fields.ATTRIBUTES.getPreferredName());
+            for (Map.Entry<String, String> entry : getNode().getAttributes().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+        }
+
+        if (getSettings() != null) {
+            builder.startObject(Fields.SETTINGS.getPreferredName());
+            Settings settings = getSettings();
+            settings.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (getOs() != null) {
+            getOs().toXContent(builder, params);
+        }
+        if (getProcess() != null) {
+            getProcess().toXContent(builder, params);
+        }
+        if (getJvm() != null) {
+            getJvm().toXContent(builder, params);
+        }
+        if (getThreadPool() != null) {
+            getThreadPool().toXContent(builder, params);
+        }
+        if (getTransport() != null) {
+            getTransport().toXContent(builder, params);
+        }
+        if (getHttp() != null) {
+            getHttp().toXContent(builder, params);
+        }
+        if (getPlugins() != null) {
+            getPlugins().toXContent(builder, params);
+        }
+        if (getIngest() != null) {
+            getIngest().toXContent(builder, params);
+        }
+
+        builder.endObject();
+        return builder;
     }
 }

@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 
 /**
@@ -387,6 +388,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
         builder.endObject();
         return builder;
+    }
+
+    public NodeInformation toNodeInformation() {
+        return new NodeInformation(nodeId, getName(), getHostName(), getHostAddress(), getAddress().toString(),
+            getRoles().stream().map(Role::getRoleName).collect(Collectors.toSet()), getAttributes(), getVersion());
     }
 
     /**

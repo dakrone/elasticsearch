@@ -173,7 +173,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
-        return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
+        return new NodeInfo(build, node, settings, osInfo, process, jvm,
             threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, indexingBuffer);
     }
 }

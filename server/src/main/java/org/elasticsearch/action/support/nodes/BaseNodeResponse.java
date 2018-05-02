@@ -20,11 +20,13 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.NodeInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A base class for node level operations.
@@ -32,6 +34,7 @@ import java.io.IOException;
 public abstract class BaseNodeResponse extends TransportResponse {
 
     private DiscoveryNode node;
+    private NodeInformation nodeInfo;
 
     protected BaseNodeResponse() {
     }
@@ -39,6 +42,10 @@ public abstract class BaseNodeResponse extends TransportResponse {
     protected BaseNodeResponse(DiscoveryNode node) {
         assert node != null;
         this.node = node;
+    }
+
+    protected BaseNodeResponse(NodeInformation nodeInfo) {
+        this.node = Objects.requireNonNull(nodeInfo, "node information may not be null").toDiscoveryNode();
     }
 
     /**

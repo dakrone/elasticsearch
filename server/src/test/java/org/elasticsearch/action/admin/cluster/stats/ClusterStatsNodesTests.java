@@ -69,7 +69,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY,
                     NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
         }
-        return new NodeInfo(null, null,
+        return new NodeInfo(null,
                 new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
                 settings.build(), null, null, null, null, null, null, null, null, null);
     }

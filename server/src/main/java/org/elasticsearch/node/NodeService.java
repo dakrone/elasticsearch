@@ -89,7 +89,7 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                 boolean transport, boolean http, boolean plugin, boolean ingest, boolean indices) {
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(),
+        return new NodeInfo(Build.CURRENT, transportService.getLocalNode(),
                 settings ? settingsFilter.filter(this.settings) : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
