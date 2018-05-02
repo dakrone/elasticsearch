@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
@@ -69,6 +73,17 @@ public class NodeInfoStreamingTests extends ESTestCase {
             }
         }
     }
+
+    public void testNodeInfoXContent() throws Exception {
+        NodeInfo info = createNodeInfo();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference shuffled = toShuffledXContent(info, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+            NodeInfo received = NodeInfo.fromXContent(parser);
+            assertExpectedUnchanged(info, received);
+        }
+    }
+
     // checks all properties that are expected to be unchanged.
     // Once we start changing them between versions this method has to be changed as well
     private void assertExpectedUnchanged(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {

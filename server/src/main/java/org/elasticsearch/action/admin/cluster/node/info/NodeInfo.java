@@ -43,10 +43,11 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Node information (static, does not change over time).
@@ -54,7 +55,7 @@ import java.util.Set;
 public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
 
     // Does not parse inner id
-    private static final ObjectParser<NodeInfoBuilder, String> PARSER = new ObjectParser<>("node_info", NodeInfoBuilder::new);
+    private static final ObjectParser<NodeInfoBuilder, String> PARSER = new ObjectParser<>("node_info", true, NodeInfoBuilder::new);
 
     static {
         PARSER.declareString((n, v) -> n.name = v, Fields.NAME);
@@ -66,7 +67,8 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         PARSER.declareObject((n, v) -> n.attributes = v, (p, c) -> p.mapStrings(), Fields.ATTRIBUTES);
         PARSER.declareField((n, v) -> n.totalIndexingBuffer = v, (p, c) -> p.longValue(), Fields.TOTAL_INDEXING_BUFFER_BYTES,
             ObjectParser.ValueType.LONG);
-        PARSER.declareField((n, v) -> n.settings = v, (p, c) -> Settings.fromXContent(p), Fields.SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((n, v) -> n.settings = v, Settings::fromXContent, Fields.SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((n, v) -> n.os = v, OsInfo::fromXContent, Fields.OS, ObjectParser.ValueType.OBJECT);
     }
 
     static final class Fields {
@@ -80,6 +82,8 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         static final ParseField ROLES = new ParseField("roles");
         static final ParseField ATTRIBUTES = new ParseField("attributes");
         static final ParseField SETTINGS = new ParseField("settings");
+
+        static final ParseField OS = new ParseField("os");
     }
 
 
@@ -148,8 +152,8 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         private String host;
         private String ipAddress;
         private String version;
-        private List<String> roles;
-        private Map<String, String> attributes;
+        private List<String> roles = new ArrayList<>();
+        private Map<String, String> attributes = new HashMap<>();
         private long totalIndexingBuffer;
         private Build build;
         private Settings settings;
@@ -316,11 +320,16 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingest);
     }
 
-    public NodeInfo fromXContent(XContentParser parser) throws IOException {
+    public static NodeInfo fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        System.out.println("now: " + parser.currentToken());
         parser.nextToken();
-        String id = parser.text();
+        System.out.println("now: " + parser.currentToken());
+        String id = parser.currentName();
         parser.nextToken();
-        parser.nextToken();
+        System.out.println("now: " + parser.currentToken());
         NodeInfoBuilder builder = PARSER.apply(parser, null);
         builder.id = id;
         return builder.build();
@@ -340,8 +349,8 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         builder.field("build_type", getBuild().type().displayName());
         builder.field("build_hash", getBuild().shortHash());
         if (getTotalIndexingBuffer() != null) {
-            builder.humanReadableField(Fields.TOTAL_INDEXING_BUFFER.getPreferredName(),
-                Fields.TOTAL_INDEXING_BUFFER_BYTES.getPreferredName(), getTotalIndexingBuffer());
+            builder.humanReadableField(Fields.TOTAL_INDEXING_BUFFER_BYTES.getPreferredName(),
+                Fields.TOTAL_INDEXING_BUFFER.getPreferredName(), getTotalIndexingBuffer());
         }
 
         builder.startArray(Fields.ROLES.getPreferredName());
@@ -366,7 +375,9 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         }
 
         if (getOs() != null) {
+            builder.startObject(Fields.OS.getPreferredName());
             getOs().toXContent(builder, params);
+            builder.endObject();
         }
         if (getProcess() != null) {
             getProcess().toXContent(builder, params);

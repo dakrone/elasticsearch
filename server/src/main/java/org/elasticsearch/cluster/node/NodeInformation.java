@@ -20,11 +20,8 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class NodeInformation implements Writeable {
+public class NodeInformation {
     private final String id;
     private final String name;
     private final String hostname;
@@ -41,7 +38,6 @@ public class NodeInformation implements Writeable {
     private final Set<String> roles;
     private final Map<String, String> attributes;
     private final Version version;
-//    private final Build build;
 
     public NodeInformation(String id, String name, String hostname, String ip, String transportAddress,
                            Set<String> roles, Map<String, String> attributes, Version version) {
@@ -53,21 +49,18 @@ public class NodeInformation implements Writeable {
         this.roles = roles;
         this.attributes = attributes;
         this.version = version;
-//        this.build = build;
     }
 
     public DiscoveryNode toDiscoveryNode() {
         int lastColon = transportAddress.lastIndexOf(":");
         assert lastColon != -1 : "expected address to have at least one :";
         String transportIp = transportAddress.substring(0, lastColon);
-        int port = Integer.valueOf(transportAddress.substring(lastColon, transportAddress.length()));
-        try {
-            TransportAddress addr = new TransportAddress(InetAddress.getByAddress(hostname, transportIp.getBytes(StandardCharsets.UTF_8)), port);
-            return new DiscoveryNode(name, id, addr, attributes,
-                roles.stream().map(DiscoveryNode.Role::valueOf).collect(Collectors.toSet()), version);
-        } catch (UnknownHostException e) {
-            throw new IllegalArgumentException(e);
-        }
+        int port = Integer.valueOf(transportAddress.substring(lastColon + 1, transportAddress.length()));
+        System.out.println("got hostname: " + hostname + " and ip " + transportIp + " port: " + port);
+        //            TransportAddress addr = new TransportAddress(InetAddress.getByAddress(hostname, transportIp.getBytes(StandardCharsets.UTF_8)), port);
+        TransportAddress addr = new TransportAddress(TransportAddress.META_ADDRESS, port);
+        return new DiscoveryNode(name, id, addr, attributes,
+            roles.stream().map(DiscoveryNode.Role::valueOf).collect(Collectors.toSet()), version);
     }
 
     public Map<String, String> getAttributes() {
@@ -109,13 +102,4 @@ public class NodeInformation implements Writeable {
     public Version getVersion() {
         return version;
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-
-    }
-
-//    public Build getBuild() {
-//        return build;
-//    }
 }
