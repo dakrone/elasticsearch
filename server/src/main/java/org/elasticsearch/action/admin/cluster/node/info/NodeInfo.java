@@ -68,12 +68,16 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         PARSER.declareField((n, v) -> n.totalIndexingBuffer = v, (p, c) -> p.longValue(), Fields.TOTAL_INDEXING_BUFFER_BYTES,
             ObjectParser.ValueType.LONG);
         PARSER.declareField((n, v) -> n.settings = v, Settings::fromXContent, Fields.SETTINGS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((n, v) -> n.os = v, OsInfo::fromXContent, Fields.OS, ObjectParser.ValueType.OBJECT);
         PARSER.declareString((n, v) -> n.buildFlavor = v, Fields.BUILD_FLAVOR);
         PARSER.declareString((n, v) -> n.buildType = v, Fields.BUILD_TYPE);
         PARSER.declareString((n, v) -> n.buildShortHash = v, Fields.BUILD_HASH);
         PARSER.declareString((n, v) -> n.buildDate = v, Fields.BUILD_DATE);
         PARSER.declareBoolean((n, v) -> n.buildSnapshot = v, Fields.BUILD_SNAPSHOT);
+
+        // Parsers for the sub objects
+        PARSER.declareField((n, v) -> n.os = v, OsInfo::fromXContent, Fields.OS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((n, v) -> n.process = v, ProcessInfo::fromXContent, Fields.PROCESS, ObjectParser.ValueType.OBJECT);
+
     }
 
     static final class Fields {
@@ -94,6 +98,13 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         static final ParseField BUILD_SNAPSHOT = new ParseField("build_snapshot");
 
         static final ParseField OS = new ParseField("os");
+        static final ParseField PROCESS = new ParseField("process");
+        static final ParseField JVM = new ParseField("jvm");
+        static final ParseField THREADPOOL = new ParseField("threadpool");
+        static final ParseField TRANSPORT = new ParseField("transport");
+        static final ParseField HTTP = new ParseField("http");
+        static final ParseField PLUGINS = new ParseField("plugins");
+        static final ParseField INGEST = new ParseField("ingest");
     }
 
 
@@ -340,12 +351,9 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        System.out.println("now: " + parser.currentToken());
-        parser.nextToken();
-        System.out.println("now: " + parser.currentToken());
-        String id = parser.currentName();
-        parser.nextToken();
-        System.out.println("now: " + parser.currentToken());
+        parser.nextToken(); // Unwrap
+        String id = parser.currentName(); // get Node ID
+        parser.nextToken(); // advance to the actual node info object
         NodeInfoBuilder builder = PARSER.apply(parser, null);
         builder.id = id;
         return builder.build();
@@ -398,7 +406,9 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
             builder.endObject();
         }
         if (getProcess() != null) {
+            builder.startObject(Fields.PROCESS.getPreferredName());
             getProcess().toXContent(builder, params);
+            builder.endObject();
         }
         if (getJvm() != null) {
             getJvm().toXContent(builder, params);

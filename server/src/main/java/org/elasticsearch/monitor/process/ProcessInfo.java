@@ -19,17 +19,27 @@
 
 package org.elasticsearch.monitor.process;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class ProcessInfo implements Writeable, ToXContentFragment {
+
+    private static final ObjectParser<ProcessInfoBuilder, Void> PARSER = new ObjectParser<>("process", true, ProcessInfoBuilder::new);
+
+    static {
+        PARSER.declareLong((b, v) -> b.refreshInterval = v, Fields.REFRESH_INTERVAL_IN_MILLIS);
+        PARSER.declareLong((b, v) -> b.id = v, Fields.ID);
+        PARSER.declareBoolean((b, v) -> b.mlockall = v, Fields.MLOCKALL);
+    }
 
     private final long refreshInterval;
     private final long id;
@@ -45,6 +55,18 @@ public class ProcessInfo implements Writeable, ToXContentFragment {
         refreshInterval = in.readLong();
         id = in.readLong();
         mlockall = in.readBoolean();
+    }
+
+    private static class ProcessInfoBuilder {
+        private long refreshInterval;
+        private long id;
+        private boolean mlockall;
+
+        ProcessInfoBuilder() { }
+
+        ProcessInfo build() {
+            return new ProcessInfo(id, mlockall, refreshInterval);
+        }
     }
 
     @Override
@@ -74,20 +96,23 @@ public class ProcessInfo implements Writeable, ToXContentFragment {
     }
 
     static final class Fields {
-        static final String PROCESS = "process";
-        static final String REFRESH_INTERVAL = "refresh_interval";
-        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
-        static final String ID = "id";
-        static final String MLOCKALL = "mlockall";
+        static final ParseField PROCESS = new ParseField("process");
+        static final ParseField REFRESH_INTERVAL = new ParseField("refresh_interval");
+        static final ParseField REFRESH_INTERVAL_IN_MILLIS = new ParseField("refresh_interval_in_millis");
+        static final ParseField ID = new ParseField("id");
+        static final ParseField MLOCKALL = new ParseField("mlockall");
+    }
+
+    public static ProcessInfo fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null).build();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.PROCESS);
-        builder.humanReadableField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, new TimeValue(refreshInterval));
-        builder.field(Fields.ID, id);
-        builder.field(Fields.MLOCKALL, mlockall);
-        builder.endObject();
+        builder.humanReadableField(Fields.REFRESH_INTERVAL_IN_MILLIS.getPreferredName(),
+            Fields.REFRESH_INTERVAL.getPreferredName(), new TimeValue(refreshInterval));
+        builder.field(Fields.ID.getPreferredName(), id);
+        builder.field(Fields.MLOCKALL.getPreferredName(), mlockall);
         return builder;
     }
 }

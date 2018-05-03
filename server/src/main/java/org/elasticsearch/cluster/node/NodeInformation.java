@@ -56,7 +56,7 @@ public class NodeInformation {
         assert lastColon != -1 : "expected address to have at least one :";
         String transportIp = transportAddress.substring(0, lastColon);
         int port = Integer.valueOf(transportAddress.substring(lastColon + 1, transportAddress.length()));
-        System.out.println("got hostname: " + hostname + " and ip " + transportIp + " port: " + port);
+        // TODO: fix this?
         //            TransportAddress addr = new TransportAddress(InetAddress.getByAddress(hostname, transportIp.getBytes(StandardCharsets.UTF_8)), port);
         TransportAddress addr = new TransportAddress(TransportAddress.META_ADDRESS, port);
         return new DiscoveryNode(name, id, addr, attributes,
