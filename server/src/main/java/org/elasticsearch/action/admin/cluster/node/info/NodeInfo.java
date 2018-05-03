@@ -69,6 +69,11 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
             ObjectParser.ValueType.LONG);
         PARSER.declareField((n, v) -> n.settings = v, Settings::fromXContent, Fields.SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((n, v) -> n.os = v, OsInfo::fromXContent, Fields.OS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareString((n, v) -> n.buildFlavor = v, Fields.BUILD_FLAVOR);
+        PARSER.declareString((n, v) -> n.buildType = v, Fields.BUILD_TYPE);
+        PARSER.declareString((n, v) -> n.buildShortHash = v, Fields.BUILD_HASH);
+        PARSER.declareString((n, v) -> n.buildDate = v, Fields.BUILD_DATE);
+        PARSER.declareBoolean((n, v) -> n.buildSnapshot = v, Fields.BUILD_SNAPSHOT);
     }
 
     static final class Fields {
@@ -82,6 +87,11 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         static final ParseField ROLES = new ParseField("roles");
         static final ParseField ATTRIBUTES = new ParseField("attributes");
         static final ParseField SETTINGS = new ParseField("settings");
+        static final ParseField BUILD_FLAVOR = new ParseField("build_flavor");
+        static final ParseField BUILD_TYPE = new ParseField("build_type");
+        static final ParseField BUILD_HASH = new ParseField("build_hash");
+        static final ParseField BUILD_DATE = new ParseField("build_date");
+        static final ParseField BUILD_SNAPSHOT = new ParseField("build_snapshot");
 
         static final ParseField OS = new ParseField("os");
     }
@@ -155,7 +165,11 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         private List<String> roles = new ArrayList<>();
         private Map<String, String> attributes = new HashMap<>();
         private long totalIndexingBuffer;
-        private Build build;
+        private String buildFlavor;
+        private String buildType;
+        private String buildShortHash;
+        private String buildDate;
+        private boolean buildSnapshot;
         private Settings settings;
         private OsInfo os;
         private ProcessInfo process;
@@ -169,6 +183,8 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         NodeInfoBuilder() { }
 
         public NodeInfo build() {
+            Build build = new Build(Build.Flavor.fromDisplayName(buildFlavor), Build.Type.fromDisplayName(buildType),
+                buildShortHash, buildDate, buildSnapshot);
             NodeInformation ni = new NodeInformation(id, name, host, ipAddress, transportAddress,
                 new HashSet<>(roles), attributes, Version.fromString(version));
             return new NodeInfo(build, ni, settings, os, process, jvm, threadPool, transport,
@@ -345,9 +361,11 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         builder.field(Fields.IP.getPreferredName(), getNode().getHostAddress());
 
         builder.field(Fields.VERSION.getPreferredName(), getVersion());
-        builder.field("build_flavor", getBuild().flavor().displayName());
-        builder.field("build_type", getBuild().type().displayName());
-        builder.field("build_hash", getBuild().shortHash());
+        builder.field(Fields.BUILD_FLAVOR.getPreferredName(), getBuild().flavor().displayName());
+        builder.field(Fields.BUILD_TYPE.getPreferredName(), getBuild().type().displayName());
+        builder.field(Fields.BUILD_HASH.getPreferredName(), getBuild().shortHash());
+        builder.field(Fields.BUILD_DATE.getPreferredName(), getBuild().date());
+        builder.field(Fields.BUILD_SNAPSHOT.getPreferredName(), getBuild().isSnapshot());
         if (getTotalIndexingBuffer() != null) {
             builder.humanReadableField(Fields.TOTAL_INDEXING_BUFFER_BYTES.getPreferredName(),
                 Fields.TOTAL_INDEXING_BUFFER.getPreferredName(), getTotalIndexingBuffer());
