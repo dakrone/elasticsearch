@@ -22,12 +22,14 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -36,11 +38,13 @@ public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToX
     private final List<ThreadPool.Info> infos;
 
     public ThreadPoolInfo(List<ThreadPool.Info> infos) {
-        this.infos = Collections.unmodifiableList(infos);
+        List<ThreadPool.Info> copy = new ArrayList<>(infos);
+        copy.sort(Comparator.comparing(ThreadPool.Info::getName));
+        this.infos = Collections.unmodifiableList(copy);
     }
 
     public ThreadPoolInfo(StreamInput in) throws IOException {
-        this.infos = Collections.unmodifiableList(in.readList(ThreadPool.Info::new));
+        this(in.readList(ThreadPool.Info::new));
     }
 
     @Override
@@ -53,17 +57,19 @@ public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToX
         return infos.iterator();
     }
 
-    static final class Fields {
-        static final String THREAD_POOL = "thread_pool";
+    public static ThreadPoolInfo fromXContent(XContentParser parser) throws IOException {
+        List<ThreadPool.Info> infos = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            infos.add(ThreadPool.Info.fromXContent(parser));
+        }
+        return new ThreadPoolInfo(infos);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.THREAD_POOL);
         for (ThreadPool.Info info : infos) {
             info.toXContent(builder, params);
         }
-        builder.endObject();
         return builder;
     }
 }

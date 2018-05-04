@@ -78,6 +78,7 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         PARSER.declareField((n, v) -> n.os = v, OsInfo::fromXContent, Fields.OS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((n, v) -> n.process = v, ProcessInfo::fromXContent, Fields.PROCESS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((n, v) -> n.jvm = v, JvmInfo::fromXContent, Fields.JVM, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((n, v) -> n.threadPool = v, ThreadPoolInfo::fromXContent, Fields.THREADPOOL, ObjectParser.ValueType.OBJECT);
 
     }
 
@@ -417,7 +418,9 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
             builder.endObject();
         }
         if (getThreadPool() != null) {
+            builder.startObject(Fields.THREADPOOL.getPreferredName());
             getThreadPool().toXContent(builder, params);
+            builder.endObject();
         }
         if (getTransport() != null) {
             getTransport().toXContent(builder, params);

@@ -21,9 +21,9 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,8 +36,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
@@ -579,6 +582,33 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
 
     public static class Info implements Writeable, ToXContentFragment {
 
+        private static final ObjectParser<InfoBuilder, Void> PARSER = new ObjectParser<>("info", true, InfoBuilder::new);
+
+        static {
+            PARSER.declareField((i, v) -> i.type = ThreadPoolType.fromType(v), (p, c) -> p.text(), Fields.TYPE, ObjectParser.ValueType.STRING);
+            PARSER.declareInt((i, v) -> i.min = v, Fields.CORE);
+            PARSER.declareInt((i, v) -> i.max = v, Fields.MAX);
+            PARSER.declareInt((i, v) -> { i.min = v; i.max = v; }, Fields.SIZE);
+            PARSER.declareField((i, v) -> i.keepAlive = TimeValue.parseTimeValue(v, "keep_alive"),
+                (p, c) -> p.text(), Fields.KEEP_ALIVE, ObjectParser.ValueType.STRING);
+            PARSER.declareField((i, v) -> i.queueSize = new SizeValue(v), (p, c) -> p.longValue(), Fields.TYPE, ObjectParser.ValueType.LONG);
+        }
+
+        private static class InfoBuilder {
+            private String name;
+            private ThreadPoolType type;
+            private int min;
+            private int max;
+            private TimeValue keepAlive;
+            private SizeValue queueSize;
+
+            private InfoBuilder() { }
+
+            Info build() {
+                return new Info(name, type, min, max, keepAlive, queueSize);
+            }
+        }
+
         private final String name;
         private final ThreadPoolType type;
         private final int min;
@@ -654,27 +684,44 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             return this.queueSize;
         }
 
+        static final class Fields {
+            static final ParseField TYPE = new ParseField("type");
+            static final ParseField CORE = new ParseField("core");
+            static final ParseField MAX = new ParseField("max");
+            static final ParseField SIZE = new ParseField("size");
+            static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
+            static final ParseField QUEUE_SIZE = new ParseField("queue_size");
+        }
+
+        public static Info fromXContent(XContentParser parser) throws IOException {
+            parser.nextToken();
+            String name = parser.currentName();
+            InfoBuilder builder = PARSER.apply(parser, null);
+            builder.name = name;
+            return builder.build();
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
-            builder.field("type", type.getType());
+            builder.field(Fields.TYPE.getPreferredName(), type.getType());
 
             if (type == ThreadPoolType.SCALING) {
                 assert min != -1;
-                builder.field("core", min);
+                builder.field(Fields.CORE.getPreferredName(), min);
                 assert max != -1;
-                builder.field("max", max);
+                builder.field(Fields.MAX.getPreferredName(), max);
             } else {
                 assert max != -1;
-                builder.field("size", max);
+                builder.field(Fields.SIZE.getPreferredName(), max);
             }
             if (keepAlive != null) {
-                builder.field("keep_alive", keepAlive.toString());
+                builder.field(Fields.KEEP_ALIVE.getPreferredName(), keepAlive.toString());
             }
             if (queueSize == null) {
-                builder.field("queue_size", -1);
+                builder.field(Fields.QUEUE_SIZE.getPreferredName(), -1);
             } else {
-                builder.field("queue_size", queueSize.singles());
+                builder.field(Fields.QUEUE_SIZE.getPreferredName(), queueSize.singles());
             }
             builder.endObject();
             return builder;
