@@ -491,11 +491,16 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         builder.timeField(Fields.START_TIME_IN_MILLIS.getPreferredName(), Fields.START_TIME.getPreferredName(), startTime);
 
         builder.startObject(Fields.MEM.getPreferredName());
-        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES.getPreferredName(), Fields.HEAP_INIT.getPreferredName(), new ByteSizeValue(mem.heapInit));
-        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES.getPreferredName(), Fields.HEAP_MAX.getPreferredName(), new ByteSizeValue(mem.heapMax));
-        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES.getPreferredName(), Fields.NON_HEAP_INIT.getPreferredName(), new ByteSizeValue(mem.nonHeapInit));
-        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES.getPreferredName(), Fields.NON_HEAP_MAX.getPreferredName(), new ByteSizeValue(mem.nonHeapMax));
-        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES.getPreferredName(), Fields.DIRECT_MAX.getPreferredName(), new ByteSizeValue(mem.directMemoryMax));
+        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES.getPreferredName(), Fields.HEAP_INIT.getPreferredName(),
+                new ByteSizeValue(mem.heapInit));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES.getPreferredName(), Fields.HEAP_MAX.getPreferredName(),
+                new ByteSizeValue(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES.getPreferredName(), Fields.NON_HEAP_INIT.getPreferredName(),
+                new ByteSizeValue(mem.nonHeapInit));
+        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES.getPreferredName(), Fields.NON_HEAP_MAX.getPreferredName(),
+                new ByteSizeValue(mem.nonHeapMax));
+        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES.getPreferredName(), Fields.DIRECT_MAX.getPreferredName(),
+                new ByteSizeValue(mem.directMemoryMax));
         builder.endObject();
 
         builder.array(Fields.GC_COLLECTORS.getPreferredName(), gcCollectors);

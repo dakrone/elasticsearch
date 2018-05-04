@@ -57,7 +57,8 @@ public class NodeInformation {
         String transportIp = transportAddress.substring(0, lastColon);
         int port = Integer.valueOf(transportAddress.substring(lastColon + 1, transportAddress.length()));
         // TODO: fix this?
-        //            TransportAddress addr = new TransportAddress(InetAddress.getByAddress(hostname, transportIp.getBytes(StandardCharsets.UTF_8)), port);
+        // TransportAddress addr = new TransportAddress(InetAddress.getByAddress(hostname,
+        //         transportIp.getBytes(StandardCharsets.UTF_8)), port);
         TransportAddress addr = new TransportAddress(TransportAddress.META_ADDRESS, port);
         return new DiscoveryNode(name, id, addr, attributes,
             roles.stream().map(DiscoveryNode.Role::valueOf).collect(Collectors.toSet()), version);
