@@ -96,7 +96,6 @@ public class ProcessInfo implements Writeable, ToXContentFragment {
     }
 
     static final class Fields {
-        static final ParseField PROCESS = new ParseField("process");
         static final ParseField REFRESH_INTERVAL = new ParseField("refresh_interval");
         static final ParseField REFRESH_INTERVAL_IN_MILLIS = new ParseField("refresh_interval_in_millis");
         static final ParseField ID = new ParseField("id");

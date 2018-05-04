@@ -19,12 +19,17 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -36,10 +41,15 @@ import java.lang.management.PlatformManagedObject;
 import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 public class JvmInfo implements Writeable, ToXContentFragment {
+
+    private static final ObjectParser<JvmInfoBuilder, Void> PARSER = new ObjectParser<>("jvm", true, JvmInfoBuilder::new);
 
     private static JvmInfo INSTANCE;
 
@@ -154,6 +164,20 @@ public class JvmInfo implements Writeable, ToXContentFragment {
                 runtimeMXBean.getVmVendor(), runtimeMXBean.getStartTime(), configuredInitialHeapSize, configuredMaxHeapSize,
                 mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError, onOutOfMemoryError,
                 useCompressedOops, useG1GC, useSerialGC);
+
+        PARSER.declareLong((b, v) -> b.pid = v, Fields.PID);
+        PARSER.declareString((b, v) -> b.version = v, Fields.VERSION);
+        PARSER.declareString((b, v) -> b.vmName = v, Fields.VM_NAME);
+        PARSER.declareString((b, v) -> b.vmVersion = v, Fields.VM_VERSION);
+        PARSER.declareString((b, v) -> b.vmVendor = v, Fields.VM_VENDOR);
+        PARSER.declareLong((b, v) -> b.startTime = v, Fields.START_TIME_IN_MILLIS);
+        PARSER.declareLong((b, v) -> b.configuredInitialHeapSize = v, Fields.HEAP_INIT_IN_BYTES);
+        PARSER.declareLong((b, v) -> b.configuredMaxHeapSize = v, Fields.HEAP_MAX_IN_BYTES);
+        PARSER.declareField((b, v) -> b.mem = v, Mem::fromXContent, Fields.MEM, ObjectParser.ValueType.OBJECT);
+        PARSER.declareStringArray((b, v) -> b.inputArguments = v.toArray(Strings.EMPTY_ARRAY), Fields.INPUT_ARGUMENTS);
+        PARSER.declareStringArray((b, v) -> b.gcCollectors = v.toArray(Strings.EMPTY_ARRAY), Fields.GC_COLLECTORS);
+        PARSER.declareStringArray((b, v) -> b.memoryPools = v.toArray(Strings.EMPTY_ARRAY), Fields.MEMORY_POOLS);
+        PARSER.declareString((b, v) -> b.useCompressedOops = v, Fields.USING_COMPRESSED_OOPS);
     }
 
     public static JvmInfo jvmInfo() {
@@ -237,6 +261,31 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         this.onOutOfMemoryError = null;
         this.useG1GC = "unknown";
         this.useSerialGC = "unknown";
+    }
+
+    private static class JvmInfoBuilder {
+        private long pid;
+        private String version;
+        private String vmName;
+        private String vmVersion;
+        private String vmVendor;
+        private long startTime;
+        private long configuredInitialHeapSize;
+        private long configuredMaxHeapSize;
+        private Mem mem;
+        private String[] inputArguments;
+        private Map<String, String> systemProperties = new HashMap<>();
+        private String[] gcCollectors;
+        private String[] memoryPools;
+        private String useCompressedOops;
+
+        JvmInfoBuilder() { }
+
+        JvmInfo build() {
+            return new JvmInfo(pid, version, vmName, vmVersion, vmVendor, startTime, configuredInitialHeapSize, configuredMaxHeapSize, mem,
+                inputArguments, "<unknown>", "<unknown>", systemProperties, gcCollectors, memoryPools, null, null,
+                useCompressedOops, "unknown", "unknown");
+        }
     }
 
     @Override
@@ -428,63 +477,79 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         return memoryPools;
     }
 
+    public static JvmInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null).build();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.JVM);
-        builder.field(Fields.PID, pid);
-        builder.field(Fields.VERSION, version);
-        builder.field(Fields.VM_NAME, vmName);
-        builder.field(Fields.VM_VERSION, vmVersion);
-        builder.field(Fields.VM_VENDOR, vmVendor);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
+        builder.field(Fields.PID.getPreferredName(), pid);
+        builder.field(Fields.VERSION.getPreferredName(), version);
+        builder.field(Fields.VM_NAME.getPreferredName(), vmName);
+        builder.field(Fields.VM_VERSION.getPreferredName(), vmVersion);
+        builder.field(Fields.VM_VENDOR.getPreferredName(), vmVendor);
+        builder.timeField(Fields.START_TIME_IN_MILLIS.getPreferredName(), Fields.START_TIME.getPreferredName(), startTime);
 
-        builder.startObject(Fields.MEM);
-        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, new ByteSizeValue(mem.heapInit));
-        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
-        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, new ByteSizeValue(mem.nonHeapInit));
-        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, new ByteSizeValue(mem.nonHeapMax));
-        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, new ByteSizeValue(mem.directMemoryMax));
+        builder.startObject(Fields.MEM.getPreferredName());
+        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES.getPreferredName(), Fields.HEAP_INIT.getPreferredName(), new ByteSizeValue(mem.heapInit));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES.getPreferredName(), Fields.HEAP_MAX.getPreferredName(), new ByteSizeValue(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES.getPreferredName(), Fields.NON_HEAP_INIT.getPreferredName(), new ByteSizeValue(mem.nonHeapInit));
+        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES.getPreferredName(), Fields.NON_HEAP_MAX.getPreferredName(), new ByteSizeValue(mem.nonHeapMax));
+        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES.getPreferredName(), Fields.DIRECT_MAX.getPreferredName(), new ByteSizeValue(mem.directMemoryMax));
         builder.endObject();
 
-        builder.array(Fields.GC_COLLECTORS, gcCollectors);
-        builder.array(Fields.MEMORY_POOLS, memoryPools);
+        builder.array(Fields.GC_COLLECTORS.getPreferredName(), gcCollectors);
+        builder.array(Fields.MEMORY_POOLS.getPreferredName(), memoryPools);
+        builder.field(Fields.USING_COMPRESSED_OOPS.getPreferredName(), useCompressedOops);
 
-        builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
-
-        builder.field(Fields.INPUT_ARGUMENTS, inputArguments);
-
-        builder.endObject();
+        builder.field(Fields.INPUT_ARGUMENTS.getPreferredName(), inputArguments);
         return builder;
     }
 
     static final class Fields {
-        static final String JVM = "jvm";
-        static final String PID = "pid";
-        static final String VERSION = "version";
-        static final String VM_NAME = "vm_name";
-        static final String VM_VERSION = "vm_version";
-        static final String VM_VENDOR = "vm_vendor";
-        static final String START_TIME = "start_time";
-        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final ParseField PID = new ParseField("pid");
+        static final ParseField VERSION = new ParseField("version");
+        static final ParseField VM_NAME = new ParseField("vm_name");
+        static final ParseField VM_VERSION = new ParseField("vm_version");
+        static final ParseField VM_VENDOR = new ParseField("vm_vendor");
+        static final ParseField START_TIME = new ParseField("start_time");
+        static final ParseField START_TIME_IN_MILLIS = new ParseField("start_time_in_millis");
+        static final ParseField MEM = new ParseField("mem");
+        static final ParseField HEAP_INIT = new ParseField("heap_init");
+        static final ParseField HEAP_INIT_IN_BYTES = new ParseField("heap_init_in_bytes");
+        static final ParseField HEAP_MAX = new ParseField("heap_max");
+        static final ParseField HEAP_MAX_IN_BYTES = new ParseField("heap_max_in_bytes");
+        static final ParseField NON_HEAP_INIT = new ParseField("non_heap_init");
+        static final ParseField NON_HEAP_INIT_IN_BYTES = new ParseField("non_heap_init_in_bytes");
+        static final ParseField NON_HEAP_MAX = new ParseField("non_heap_max");
+        static final ParseField NON_HEAP_MAX_IN_BYTES = new ParseField("non_heap_max_in_bytes");
+        static final ParseField DIRECT_MAX = new ParseField("direct_max");
+        static final ParseField DIRECT_MAX_IN_BYTES = new ParseField("direct_max_in_bytes");
+        static final ParseField GC_COLLECTORS = new ParseField("gc_collectors");
+        static final ParseField MEMORY_POOLS = new ParseField("memory_pools");
+        static final ParseField USING_COMPRESSED_OOPS = new ParseField("using_compressed_ordinary_object_pointers");
+        static final ParseField INPUT_ARGUMENTS = new ParseField("input_arguments");
 
-        static final String MEM = "mem";
-        static final String HEAP_INIT = "heap_init";
-        static final String HEAP_INIT_IN_BYTES = "heap_init_in_bytes";
-        static final String HEAP_MAX = "heap_max";
-        static final String HEAP_MAX_IN_BYTES = "heap_max_in_bytes";
-        static final String NON_HEAP_INIT = "non_heap_init";
-        static final String NON_HEAP_INIT_IN_BYTES = "non_heap_init_in_bytes";
-        static final String NON_HEAP_MAX = "non_heap_max";
-        static final String NON_HEAP_MAX_IN_BYTES = "non_heap_max_in_bytes";
-        static final String DIRECT_MAX = "direct_max";
-        static final String DIRECT_MAX_IN_BYTES = "direct_max_in_bytes";
-        static final String GC_COLLECTORS = "gc_collectors";
-        static final String MEMORY_POOLS = "memory_pools";
-        static final String USING_COMPRESSED_OOPS = "using_compressed_ordinary_object_pointers";
-        static final String INPUT_ARGUMENTS = "input_arguments";
     }
 
     public static class Mem implements Writeable {
+
+        private static final ConstructingObjectParser<Mem, Void> PARSER = new ConstructingObjectParser<>("mem", true, a -> {
+            long heapInit = (long) a[0];
+            long heapMax = (long) a[1];
+            long nonHeapInit = (long) a[2];
+            long nonHeapMax = (long) a[3];
+            long directMemoryMax = (long) a[4];
+            return new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);
+        });
+
+        static {
+            PARSER.declareLong(constructorArg(), Fields.HEAP_INIT_IN_BYTES);
+            PARSER.declareLong(constructorArg(), Fields.HEAP_MAX_IN_BYTES);
+            PARSER.declareLong(constructorArg(), Fields.NON_HEAP_INIT_IN_BYTES);
+            PARSER.declareLong(constructorArg(), Fields.NON_HEAP_MAX_IN_BYTES);
+            PARSER.declareLong(constructorArg(), Fields.DIRECT_MAX_IN_BYTES);
+        }
 
         private final long heapInit;
         private final long heapMax;
@@ -535,6 +600,10 @@ public class JvmInfo implements Writeable, ToXContentFragment {
 
         public ByteSizeValue getDirectMemoryMax() {
             return new ByteSizeValue(directMemoryMax);
+        }
+
+        static Mem fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
     }
 }
