@@ -22,12 +22,16 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,10 +46,38 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
 /**
  * An in-memory representation of the plugin descriptor.
  */
 public class PluginInfo implements Writeable, ToXContentObject {
+
+    private static final ConstructingObjectParser<PluginInfo, Void> PARSER = new ConstructingObjectParser<>("plugin_info", true,
+        a -> {
+            final String name = (String) a[0];
+            final String description = (String) a[1];
+            final String version = (String) a[2];
+            final Version elasticsearchVersion = (Version) a[3];
+            final String javaVersion = (String) a[4];
+            final String classname = (String) a[5];
+            final List<String> extendedPlugins = (List<String>) a[6];
+            final boolean hasNativeController = (boolean) a[7];
+            return new PluginInfo(name, description, version, elasticsearchVersion, javaVersion,
+                classname, extendedPlugins, hasNativeController);
+        });
+
+    static {
+        PARSER.declareString(constructorArg(), Fields.NAME);
+        PARSER.declareString(constructorArg(), Fields.DESCRIPTION);
+        PARSER.declareString(constructorArg(), Fields.VERSION);
+        PARSER.declareField(constructorArg(), (p, v) -> Version.fromString(p.text()),
+            Fields.ELASTICSEARCH_VERSION, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), Fields.JAVA_VERSION);
+        PARSER.declareString(constructorArg(), Fields.CLASSNAME);
+        PARSER.declareStringArray(constructorArg(), Fields.EXTENDEND_PLUGINS);
+        PARSER.declareBoolean(constructorArg(), Fields.HAS_NATIVE_CONTROLLER);
+    }
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
@@ -316,20 +348,31 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return hasNativeController;
     }
 
+    public static PluginInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    private static class Fields {
+        static final ParseField NAME = new ParseField("name");
+        static final ParseField VERSION = new ParseField("version");
+        static final ParseField ELASTICSEARCH_VERSION = new ParseField("elasticsearch_version");
+        static final ParseField JAVA_VERSION = new ParseField("java_version");
+        static final ParseField DESCRIPTION = new ParseField("description");
+        static final ParseField CLASSNAME = new ParseField("classname");
+        static final ParseField EXTENDEND_PLUGINS = new ParseField("extended_plugins");
+        static final ParseField HAS_NATIVE_CONTROLLER = new ParseField("has_native_controller");
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field("name", name);
-            builder.field("version", version);
-            builder.field("elasticsearch_version", elasticsearchVersion);
-            builder.field("java_version", javaVersion);
-            builder.field("description", description);
-            builder.field("classname", classname);
-            builder.field("extended_plugins", extendedPlugins);
-            builder.field("has_native_controller", hasNativeController);
-        }
-        builder.endObject();
+        builder.field(Fields.NAME.getPreferredName(), name);
+        builder.field(Fields.VERSION.getPreferredName(), version);
+        builder.field(Fields.ELASTICSEARCH_VERSION.getPreferredName(), elasticsearchVersion);
+        builder.field(Fields.JAVA_VERSION.getPreferredName(), javaVersion);
+        builder.field(Fields.DESCRIPTION.getPreferredName(), description);
+        builder.field(Fields.CLASSNAME.getPreferredName(), classname);
+        builder.field(Fields.EXTENDEND_PLUGINS.getPreferredName(), extendedPlugins);
+        builder.field(Fields.HAS_NATIVE_CONTROLLER.getPreferredName(), hasNativeController);
 
         return builder;
     }

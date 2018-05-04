@@ -160,7 +160,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
         builder.startArray(Fields.PLUGINS);
         for (PluginInfo pluginInfo : plugins) {
+            builder.startObject();
             pluginInfo.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endArray();
 

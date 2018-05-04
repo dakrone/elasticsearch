@@ -22,9 +22,9 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.IOException;
@@ -86,13 +86,17 @@ public class PluginsAndModules implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("plugins");
         for (PluginInfo pluginInfo : getPluginInfos()) {
+            builder.startObject();
             pluginInfo.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endArray();
         // TODO: not ideal, make a better api for this (e.g. with jar metadata, and so on)
         builder.startArray("modules");
         for (PluginInfo moduleInfo : getModuleInfos()) {
+            builder.startObject();
             moduleInfo.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endArray();
 

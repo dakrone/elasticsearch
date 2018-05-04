@@ -39,6 +39,7 @@ import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
@@ -79,7 +80,23 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         PARSER.declareField((n, v) -> n.process = v, ProcessInfo::fromXContent, Fields.PROCESS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((n, v) -> n.jvm = v, JvmInfo::fromXContent, Fields.JVM, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((n, v) -> n.threadPool = v, ThreadPoolInfo::fromXContent, Fields.THREADPOOL, ObjectParser.ValueType.OBJECT);
-
+        // TODO: transport
+        // TODO: http
+        PARSER.declareField((n, v) -> n.plugins = v, (p, v) -> {
+            List<PluginInfo> plugins = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                plugins.add(PluginInfo.fromXContent(p));
+            }
+            return plugins;
+        }, Fields.PLUGINS, ObjectParser.ValueType.OBJECT_ARRAY);
+        PARSER.declareField((n, v) -> n.modules = v, (p, v) -> {
+            List<PluginInfo> modules = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                modules.add(PluginInfo.fromXContent(p));
+            }
+            return modules;
+        }, Fields.MODULES, ObjectParser.ValueType.OBJECT_ARRAY);
+        // TODO: ingest
     }
 
     static final class Fields {
@@ -106,6 +123,7 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         static final ParseField TRANSPORT = new ParseField("transport");
         static final ParseField HTTP = new ParseField("http");
         static final ParseField PLUGINS = new ParseField("plugins");
+        static final ParseField MODULES = new ParseField("modules");
         static final ParseField INGEST = new ParseField("ingest");
     }
 
@@ -190,7 +208,8 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
         private ThreadPoolInfo threadPool;
         private TransportInfo transport;
         private HttpInfo http;
-        private PluginsAndModules plugins;
+        private List<PluginInfo> plugins;
+        private List<PluginInfo> modules;
         private IngestInfo ingest;
 
         NodeInfoBuilder() { }
@@ -200,8 +219,15 @@ public class NodeInfo extends BaseNodeResponse implements ToXContentFragment {
                 buildShortHash, buildDate, buildSnapshot);
             NodeInformation ni = new NodeInformation(id, name, host, ipAddress, transportAddress,
                 new HashSet<>(roles), attributes, Version.fromString(version));
+            final PluginsAndModules pluginsAndModules;
+            if (plugins == null && modules == null) {
+                pluginsAndModules = null;
+            } else {
+                pluginsAndModules = new PluginsAndModules(plugins == null ? new ArrayList<>() : plugins,
+                    modules == null ? new ArrayList<>() : modules);
+            }
             return new NodeInfo(build, ni, settings, os, process, jvm, threadPool, transport,
-                http, plugins, ingest, new ByteSizeValue(totalIndexingBuffer));
+                http, pluginsAndModules, ingest, new ByteSizeValue(totalIndexingBuffer));
         }
     }
 
