@@ -124,7 +124,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.lenientExpandOpen();
+        return IndicesOptions.lenientExpandAll();
     }
 
     public TimeValue timeout() {

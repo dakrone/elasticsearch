@@ -57,12 +57,12 @@
 
   - match:
       $body: |
-               /^(       \s+
+               /^(green  \s+
                   close  \s+
                   index1 \s+
                   ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
-                         \s+
-                         \s+
+                  1      \s+
+                  0      \s+
                          \s+
                          \s+
                          \s+

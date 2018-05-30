@@ -55,11 +55,10 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
@@ -118,7 +117,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> verifying that the state is green");
         ensureGreen();
@@ -156,7 +155,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().admin().indices().prepareClose("test").execute().actionGet();
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> restarting nodes...");
         internalCluster().fullRestart();
@@ -165,7 +164,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {
@@ -257,7 +256,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> opening the index...");
         client().admin().indices().prepareOpen("test").execute().actionGet();
@@ -408,9 +407,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
-        // ensureGreen(closedIndex) waits for the index to show up in the metadata
+        // this assertBusy waits for the index to show up in the metadata
         // this is crucial otherwise the state call below might not contain the index yet
-        ensureGreen(metaData.getIndex().getName());
+        assertBusy(() -> {
+            ClusterState newState = client().admin().cluster().prepareState().get().getState();
+            assertThat(newState.getMetaData().index(metaData.getIndex()), notNullValue());
+        });
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
         assertEquals("classic", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
@@ -465,9 +467,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
-        // ensureGreen(closedIndex) waits for the index to show up in the metadata
+        // this assertBusy waits for the index to show up in the metadata
         // this is crucial otherwise the state call below might not contain the index yet
-        ensureGreen(metaData.getIndex().getName());
+        assertBusy(() -> {
+            ClusterState newState = client().admin().cluster().prepareState().get().getState();
+            assertThat(newState.getMetaData().index(metaData.getIndex()), notNullValue());
+        });
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
 

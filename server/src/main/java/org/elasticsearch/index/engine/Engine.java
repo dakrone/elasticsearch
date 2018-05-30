@@ -226,6 +226,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Returns whether this is a noop engine or not
+     */
+    public abstract boolean isNoopEngine();
+
+    /**
      * Returns the number of milliseconds this engine was under index throttling.
      */
     public abstract long getIndexThrottleTimeInMillis();
@@ -838,7 +843,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments(boolean verbose);
 
-    public final boolean refreshNeeded() {
+    public boolean refreshNeeded() {
         if (store.tryIncRef()) {
             /*
               we need to inc the store here since we acquire a searcher and that might keep a file open on the

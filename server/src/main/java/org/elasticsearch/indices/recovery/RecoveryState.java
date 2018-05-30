@@ -148,6 +148,16 @@ public class RecoveryState implements ToXContentFragment, Streamable {
         stage = next;
     }
 
+    /**
+     * Resets all of the tracked states for the recovery
+     */
+    public void reset() {
+        getTranslog().reset();
+        getTimer().reset();
+        getIndex().reset();
+        getVerifyIndex().reset();
+    }
+
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {

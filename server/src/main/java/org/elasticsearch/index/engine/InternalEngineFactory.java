@@ -24,4 +24,9 @@ public class InternalEngineFactory implements EngineFactory {
     public Engine newReadWriteEngine(EngineConfig config) {
         return new InternalEngine(config);
     }
+
+    @Override
+    public Engine newClosedEngine(EngineConfig config) {
+        return new NoopEngine(config);
+    }
 }

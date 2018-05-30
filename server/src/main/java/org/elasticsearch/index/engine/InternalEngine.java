@@ -459,6 +459,11 @@ public class InternalEngine extends Engine {
         return writingBytes.get();
     }
 
+    @Override
+    public boolean isNoopEngine() {
+        return false;
+    }
+
     /**
      * Reads the current stored translog ID from the last commit data.
      */

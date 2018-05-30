@@ -83,6 +83,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.NoopEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -217,6 +218,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexShardOperationPermits indexShardOperationPermits;
 
+    // Always changed under a lock
+    private volatile boolean engineFrozen = false;
+
     private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY);
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
     // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
@@ -310,6 +314,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
+        engineFrozen = isClosed();
+        logger.trace("index shard created with initial {} state", engineFrozen ? "NOOP" : "REGULAR");
     }
 
     public ThreadPool getThreadPool() {
@@ -513,6 +519,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             // set this last, once we finished updating all internal state.
             this.shardRouting = newRouting;
+
+            // Transition shard to a closed/open engine, if needed
+            if (state() == IndexShardState.STARTED) {
+                transitionShardEngine();
+            }
+
             shardStateUpdated.countDown();
         }
         if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
@@ -521,6 +533,111 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (newRouting.equals(currentRouting) == false) {
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
+    }
+
+    private boolean assertCorrectEngineType(Engine engine, boolean currentlyClosed) {
+        if (engine == null) {
+            return true;
+        }
+        if (currentlyClosed) {
+            assert engine instanceof NoopEngine : "expected " + shardId + " noop engine but it was " + engine.getClass();
+        } else {
+            assert engine instanceof InternalEngine : "expected " + shardId + " internal engine it but it was " + engine.getClass();
+        }
+        return true;
+    }
+
+    private void transitionShardEngine() {
+        if (state != IndexShardState.STARTED) {
+            throw new IllegalArgumentException("tried to transition non-started shard, currently " + state);
+        }
+
+        if (engineFrozen == isClosed()) {
+            // Engine already matches state in index metadata, no work to be done
+            return;
+        }
+
+        try {
+            indexShardOperationPermits.blockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    synchronized (mutex) {
+                        final boolean shouldBeNoop = isClosed();
+                        if (shouldBeNoop != engineFrozen) {
+                            logger.debug("starting transition from {} engine to {} engine",
+                                engineFrozen ? "NOOP" : "REGULAR", shouldBeNoop ? "NOOP" : "REGULAR");
+
+                            final Engine engine = this.currentEngineReference.get();
+
+                            if (engine != null) {
+                                if (shouldBeNoop == engine.isNoopEngine()) {
+                                    logger.trace("engine has already been transitioned");
+                                    // logger.trace("=== Appears engine (noop: {}, engine: {}) has already been transitioned! " +
+                                    //         "engineFrozen: {}", shouldBeNoop, engine, engineFrozen);
+                                    engineFrozen = shouldBeNoop;
+                                    assert assertCorrectEngineType(engine, engineFrozen);
+                                    return;
+                                }
+
+                                logger.trace("flushing and closing existing engine before closing");
+                                engine.syncTranslog();
+                                engine.flush(true, true);
+                                engine.close();
+                            }
+
+                            logger.trace("creating new transitioned engine ({})", shouldBeNoop ? "NOOP" : "REGULAR");
+                            final EngineConfig config = newEngineConfig();
+                            final Engine newEngine;
+                            if (shouldBeNoop) {
+                                newEngine = newClosedEngine(config);
+                            } else {
+                                newEngine = newEngine(config);
+                            }
+                            onNewEngine(engine);
+
+                            if (shouldBeNoop) {
+                                logger.trace("flushing new transitioning noop engine for translog deletion");
+                                newEngine.syncTranslog();
+                                // Flush new noop engine to get rid of translog(s)
+                                newEngine.flush();
+                            } else {
+                                logger.trace("starting translog recovery for engine transition");
+                                // First, reset the recovery state so assertions aren't tripped
+                                // because numbers come from a previous recovery
+                                this.recoveryState.reset();
+                                newEngine.recoverFromTranslog();
+                            }
+
+                            final boolean previousEngineFrozen = engineFrozen;
+                            // Update new frozen state and engine reference
+                            engineFrozen = shouldBeNoop;
+                            this.currentEngineReference.set(newEngine);
+                            logger.debug("))) transition from {} engine to {} engine complete",
+                                previousEngineFrozen ? "NOOP" : "REGULAR", engineFrozen ? "NOOP" : "REGULAR");
+
+                            // Sanity checks
+                            if (shouldBeNoop) {
+                                // Sanity check the new engine, if these are not satisfied then peer recovery will fail
+                                final long localCkp = getLocalCheckpoint();
+                                final long globalCkp = getGlobalCheckpoint();
+                                if (localCkp != globalCkp) {
+                                    throw new IllegalStateException("unable to close, local checkpoint (" + localCkp +
+                                        ") != global checkpoint (" + globalCkp + ")");
+                                }
+                                final long translogOps = translogStats().estimatedNumberOfOperations();
+                                if (translogOps > 0) {
+                                    throw new IllegalStateException("unable to close, there are " + translogOps +
+                                        " translog operations when there should be 0");
+                                }
+                            }
+                        }
+                    }
+                });
+        } catch (TimeoutException | IOException | InterruptedException e) {
+            failShard("shard failed during transition", e);
+        }
+
     }
 
     /**
@@ -2095,8 +2212,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (state == IndexShardState.CLOSED) {
                 throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
-            assert this.currentEngineReference.get() == null;
-            Engine engine = newEngine(config);
+            assert this.currentEngineReference.get() == null : "expected no existing engine but got: " + this.currentEngineReference.get();
+            final Engine engine;
+            if (isClosed()) {
+                engine = newClosedEngine(config);
+            } else {
+                engine = newEngine(config);
+            }
             onNewEngine(engine); // call this before we pass the memory barrier otherwise actions that happen
             // inside the callback are not visible. This one enforces happens-before
             this.currentEngineReference.set(engine);
@@ -2115,6 +2237,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected Engine newEngine(EngineConfig config) {
         return engineFactory.newReadWriteEngine(config);
+    }
+
+    protected Engine newClosedEngine(EngineConfig config) {
+        return engineFactory.newClosedEngine(config);
     }
 
     private static void persistMetadata(
@@ -2586,5 +2712,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
+    }
+
+    /**
+     * Return true if this shard is currently closed, false otherwise
+     */
+    public boolean isClosed() {
+        return indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE;
     }
 }
