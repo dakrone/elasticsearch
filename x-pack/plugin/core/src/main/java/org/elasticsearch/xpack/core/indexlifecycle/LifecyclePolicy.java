@@ -186,7 +186,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                 // after step should have the name of the previous phase since the index is still in the
                 // previous phase until the after condition is reached
                 Step.StepKey afterStepKey = new Step.StepKey(previousPhase.getName(), PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
-                Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
+                Step phaseAfterStep = new PhaseCompleteStep(afterStepKey);
                 steps.add(phaseAfterStep);
                 lastStepKey = phaseAfterStep.getKey();
             }
@@ -210,7 +210,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         if (phase != null) {
             // The very first after step is in a phase before the hot phase so call this "new"
             Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
-            Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
+            Step phaseAfterStep = new PhaseCompleteStep(afterStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();
         }

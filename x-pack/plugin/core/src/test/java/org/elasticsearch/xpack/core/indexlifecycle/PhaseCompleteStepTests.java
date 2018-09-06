@@ -12,26 +12,19 @@ public class PhaseCompleteStepTests extends AbstractStepTestCase<PhaseCompleteSt
     @Override
     public PhaseCompleteStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
-        StepKey nextStepKey = randomStepKey();
-        return new PhaseCompleteStep(stepKey, nextStepKey);
+        return new PhaseCompleteStep(stepKey);
     }
 
     @Override
     public PhaseCompleteStep mutateInstance(PhaseCompleteStep instance) {
         StepKey key = instance.getKey();
-        StepKey nextKey = instance.getNextStepKey();
+        key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
 
-        if (randomBoolean()) {
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-        } else {
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-        }
-
-        return new PhaseCompleteStep(key, nextKey);
+        return new PhaseCompleteStep(key);
     }
 
     @Override
     public PhaseCompleteStep copyInstance(PhaseCompleteStep instance) {
-        return new PhaseCompleteStep(instance.getKey(), instance.getNextStepKey());
+        return new PhaseCompleteStep(instance.getKey());
     }
 }

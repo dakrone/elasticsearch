@@ -12,7 +12,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 public class PhaseCompleteStep extends Step {
     public static final String NAME = "complete";
 
-    public PhaseCompleteStep(StepKey key, StepKey nextStepKey) {
-        super(key, nextStepKey);
+    public PhaseCompleteStep(StepKey key) {
+        super(key, null);
     }
 }

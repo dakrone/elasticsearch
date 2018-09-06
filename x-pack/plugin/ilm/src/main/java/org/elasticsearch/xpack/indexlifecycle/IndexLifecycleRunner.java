@@ -48,11 +48,13 @@ public class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
+    private Client client;
     private LongSupplier nowSupplier;
 
-    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService, LongSupplier nowSupplier) {
+    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService, Client client, LongSupplier nowSupplier) {
         this.stepRegistry = stepRegistry;
         this.clusterService = clusterService;
+        this.client = client;
         this.nowSupplier = nowSupplier;
     }
 
@@ -107,8 +109,8 @@ public class IndexLifecycleRunner {
             return;
         } else if (currentStep instanceof PhaseCompleteStep) {
             // Only proceed to the next step if enough time has elapsed to go into the next phase
-            if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
-                moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+            Optional<String> nextPhase = stepRegistry.getNextPhase(policy, currentStep.getKey().getPhase());
+            if (isReadyToTransitionToThisPhase(policy, indexMetaData, nextPhase.orElse(TerminalPolicyStep.COMPLETED_PHASE))) {
                 moveToNextPhase(indexMetaData.getIndex(), policy, currentStep.getKey());
             }
             return;
@@ -266,7 +268,7 @@ public class IndexLifecycleRunner {
         // First, determine what the next phase we need to move to is
         Optional<String> nextPhase = stepsRegistry.getNextPhase(policy.getName(), currentStep.getPhase());
         logger.debug("moveToNextPhase[{}] [{}] finished [{}] phase, moving to [{}] phase",
-            policy, index.getName(), currentStep.getPhase(), nextPhase.orElse(TerminalPolicyStep.COMPLETED_PHASE));
+            policy.getName(), index.getName(), currentStep.getPhase(), nextPhase.orElse(TerminalPolicyStep.COMPLETED_PHASE));
 
         final StepKey nextStep;
         if (nextPhase.isPresent()) {
@@ -434,7 +436,7 @@ public class IndexLifecycleRunner {
         logger.debug("moveToNextPhase[{}] [{}] finished [{}] phase, moving to next phase",
             policy, index.getName(), currentStepKey.getPhase());
         clusterService.submitStateUpdateTask("ILM-move-to-next-phase", new MoveToNextPhaseUpdateTask(index, policy, stepRegistry,
-            currentStepKey, null, nowSupplier));
+            currentStepKey, client, nowSupplier));
     }
 
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {
