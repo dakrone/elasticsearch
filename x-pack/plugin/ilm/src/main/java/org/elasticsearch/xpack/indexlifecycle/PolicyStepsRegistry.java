@@ -36,8 +36,10 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -164,48 +166,56 @@ public class PolicyStepsRegistry {
                 if (existingPhase.equals(currentPhase) == false) {
                     logger.debug("index [{}] has transitioned phases [{} -> {}], rebuilding step list",
                         index, existingPhase, currentPhase);
-                    // parse existing phase steps from the phase definition in the index settings
-                    String phaseDef = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION,
+                    // Retrieve the phase definition JSON out of the settings
+                    final String phaseDef = imd.value.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION,
                         InitializePolicyContextStep.INITIALIZATION_PHASE);
-                    final Phase phase;
-                    LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
-                    final LifecyclePolicy policyToExecute;
-                    if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDef)
-                            || TerminalPolicyStep.COMPLETED_PHASE.equals(phaseDef)) {
-                        // It is ok to re-use potentially modified policy here since we are in an initialization or completed phase
-                        policyToExecute = currentPolicy;
-                    } else {
-                        // if the current phase definition describes an internal step/phase, do not parse
-                        try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
-                            phase = Phase.parse(parser, currentPhase);
-                        } catch (IOException e) {
-                            logger.error("failed to configure phase [" + currentPhase + "] for index [" + index.getName() + "]", e);
-                            indexPhaseSteps.remove(index);
-                            continue;
-                        }
-                        Map<String, Phase> phaseMap = new HashMap<>(currentPolicy.getPhases());
-                        if (phase != null) {
-                            phaseMap.put(currentPhase, phase);
-                        }
-                        policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
+                    try {
+                        // Build a new list of steps based on the phase definition JSON
+                        List<Step> phaseSteps = getIndexPhaseSteps(client, phaseDef, policy, currentPhase);
+                        indexPhaseSteps.put(index, phaseSteps);
+                    } catch (IOException e) {
+                        logger.error("failed to configure phase [" + currentPhase + "] for index [" + index.getName() + "]", e);
+                        indexPhaseSteps.remove(index);
                     }
-                    LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
-                        ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
-                    final List<Step> steps = policyToExecute.toSteps(policyClient);
-                    // Build a list of steps that correspond with the phase the index is currently in
-                    final List<Step> phaseSteps;
-                    if (steps == null) {
-                        phaseSteps = new ArrayList<>();
-                    } else {
-                        phaseSteps = steps.stream()
-                            .filter(e -> e.getKey().getPhase().equals(currentPhase))
-                            .collect(Collectors.toList());
-                    }
-                    indexPhaseSteps.put(index, phaseSteps);
                 }
             }
         }
+    }
+
+    List<Step> getIndexPhaseSteps(final Client client, final String phaseDefJson,
+                                  final String policy, final String phase) throws IOException {
+        final Phase parsedPhase;
+        LifecyclePolicy currentPolicy = lifecyclePolicyMap.get(policy).getPolicy();
+        final LifecyclePolicy policyToExecute;
+        if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDefJson)
+            || TerminalPolicyStep.COMPLETED_PHASE.equals(phaseDefJson)) {
+            // It is ok to re-use potentially modified policy here since we are in an initialization or completed phase
+            policyToExecute = currentPolicy;
+        } else {
+            // if the current phase definition describes an internal step/phase, do not parse
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDefJson)) {
+                parsedPhase = Phase.parse(parser, phase);
+            }
+            Map<String, Phase> phaseMap = new HashMap<>(currentPolicy.getPhases());
+            if (phase != null) {
+                phaseMap.put(phase, parsedPhase);
+            }
+            policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
+        }
+        LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
+            ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
+        final List<Step> steps = policyToExecute.toSteps(policyClient);
+        // Build a list of steps that correspond with the phase the index is currently in
+        final List<Step> phaseSteps;
+        if (steps == null) {
+            phaseSteps = new ArrayList<>();
+        } else {
+            phaseSteps = steps.stream()
+                .filter(e -> e.getKey().getPhase().equals(phase))
+                .collect(Collectors.toList());
+        }
+        return phaseSteps;
     }
 
     /**
@@ -274,5 +284,44 @@ public class PolicyStepsRegistry {
                 return retrievedPhase.getAfter();
             }
         }
+    }
+
+    /**
+     * Returns the next phase in the given policy after the current phase
+     * @return An Optional phase name, or empty if no phase or policy was found
+     */
+    Optional<String> getNextPhase(String policyName, String currentPhase) {
+        LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
+        if (policyMetadata == null) {
+            return Optional.empty();
+        }
+
+        LifecyclePolicy policy = policyMetadata.getPolicy();
+        logger.info("--> looking for next phase in {} currently: {}", policy.getPhases().keySet(), currentPhase);
+        Iterator<String> iterator = policy.getPhases().keySet().iterator();
+
+        if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(currentPhase)) {
+            if (iterator.hasNext()) {
+                // In the "new" phase the first phase of the policy should be used if available
+                return Optional.of(iterator.next());
+            } else {
+                // There are no phases left to execute
+                return Optional.empty();
+            }
+        }
+
+        // Otherwise, go through the phases in order, returning the next one
+        // after our current phase
+        while (iterator.hasNext()) {
+            String phase = iterator.next();
+            if (phase.equals(currentPhase)) {
+                if (iterator.hasNext()) {
+                    return Optional.of(iterator.next());
+                } else {
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.empty();
     }
 }

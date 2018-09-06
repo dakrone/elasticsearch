@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.indexlifecycle.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
@@ -63,6 +64,7 @@ import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUt
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
+@TestLogging("org.elasticsearch.xpack.indexlifecycle:TRACE,org.elasticsearch.xpack.core.indexlifecycle:TRACE")
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
     private PolicyStepsRegistry createOneStepPolicyStepRegistry(String policyName, Step step) {

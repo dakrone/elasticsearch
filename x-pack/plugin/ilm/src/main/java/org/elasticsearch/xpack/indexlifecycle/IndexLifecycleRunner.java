@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.LongSupplier;
 
 public class IndexLifecycleRunner {
@@ -106,6 +109,7 @@ public class IndexLifecycleRunner {
             // Only proceed to the next step if enough time has elapsed to go into the next phase
             if (isReadyToTransitionToThisPhase(policy, indexMetaData, currentStep.getNextStepKey().getPhase())) {
                 moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                moveToNextPhase(indexMetaData.getIndex(), policy, currentStep.getKey());
             }
             return;
         }
@@ -243,13 +247,48 @@ public class IndexLifecycleRunner {
     }
 
     static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
-            LongSupplier nowSupplier) {
+                                                   LongSupplier nowSupplier) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy policy = ilmMeta.getPolicies().get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         Settings.Builder indexSettings = moveIndexSettingsToNextStep(policy, idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
         return newClusterStateBuilder.build();
+    }
+
+    static ClusterState moveClusterStateToNextPhase(Index index, ClusterState clusterState, PolicyStepsRegistry stepsRegistry,
+                                                    StepKey currentStep, Client client,
+                                                    LongSupplier nowSupplier) {
+        IndexMetaData idxMeta = clusterState.getMetaData().index(index);
+        IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        LifecyclePolicy policy = ilmMeta.getPolicies().get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
+
+        // First, determine what the next phase we need to move to is
+        Optional<String> nextPhase = stepsRegistry.getNextPhase(policy.getName(), currentStep.getPhase());
+        logger.debug("moveToNextPhase[{}] [{}] finished [{}] phase, moving to [{}] phase",
+            policy, index.getName(), currentStep.getPhase(), nextPhase.orElse(TerminalPolicyStep.COMPLETED_PHASE));
+
+        final StepKey nextStep;
+        if (nextPhase.isPresent()) {
+            // Retrieve the phase definition JSON for the next phase
+            final String phaseDef = extractPhaseJson(policy, nextPhase.get());
+            try {
+                // Generate a list of steps for the next phase's JSON
+                List<Step> phaseSteps = stepsRegistry.getIndexPhaseSteps(client, phaseDef, policy.getName(), nextPhase.get());
+                // Retrieve the key for the first step in the next phase, or terminal if there are no steps
+                assert phaseSteps.size() > 0 : "expected to have phase steps but there were none for " + nextPhase.get();
+                nextStep = phaseSteps.get(0).getKey();
+
+            } catch (IOException e) {
+                throw new ElasticsearchException("unable to move cluster state to next phase", e);
+            }
+        } else {
+            // There is no next phase, therefore the next phase is the terminate phase
+            nextStep = TerminalPolicyStep.KEY;
+        }
+
+        Settings.Builder indexSettings = moveIndexSettingsToNextPhase(idxMeta.getSettings(), nextStep, nowSupplier);
+        return newClusterStateWithIndexSettings(index, clusterState, indexSettings).build();
     }
 
     static ClusterState moveClusterStateToErrorStep(Index index, ClusterState clusterState, StepKey currentStep, Exception cause,
@@ -290,33 +329,61 @@ public class IndexLifecycleRunner {
         return newState;
     }
 
+    /**
+     * Given a policy and phase name, return the JSON for that particular phase
+     * so it can be persisted in metadata
+     */
+    private static String extractPhaseJson(LifecyclePolicy policy, String phase) {
+        final String newPhaseDefinition;
+        if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phase) || TerminalPolicyStep.COMPLETED_PHASE.equals(phase)) {
+            newPhaseDefinition = phase;
+        } else {
+            Phase nextPhase = policy.getPhases().get(phase);
+            if (nextPhase == null) {
+                newPhaseDefinition = null;
+            } else {
+                newPhaseDefinition = Strings.toString(nextPhase, false, false);
+            }
+        }
+        return newPhaseDefinition;
+    }
+
     private static Settings.Builder moveIndexSettingsToNextStep(LifecyclePolicy policy, Settings existingSettings,
                                                                 StepKey currentStep, StepKey nextStep, LongSupplier nowSupplier) {
         long nowAsMillis = nowSupplier.getAsLong();
-        Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
-                .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis)
-                // clear any step info or error-related settings from the current step
-                .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, (String) null)
-                .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
+        Settings.Builder newSettings = Settings.builder().put(existingSettings)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
+            .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis)
+            // clear any step info or error-related settings from the current step
+            .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, (String) null)
+            .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
-            final String newPhaseDefinition;
-            if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {
-                newPhaseDefinition = nextStep.getPhase();
-            } else {
-                Phase nextPhase = policy.getPhases().get(nextStep.getPhase());
-                if (nextPhase == null) {
-                    newPhaseDefinition = null;
-                } else {
-                    newPhaseDefinition = Strings.toString(nextPhase, false, false);
-                }
-            }
+            // Update the metadata with the new phase definition's JSON
+            String newPhaseDefinition = extractPhaseJson(policy, nextStep.getPhase());
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_DEFINITION, newPhaseDefinition);
             newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }
         if (currentStep.getAction().equals(nextStep.getAction()) == false) {
             newSettings.put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowAsMillis);
         }
+        return newSettings;
+    }
+
+    private static Settings.Builder moveIndexSettingsToNextPhase(Settings existingSettings, StepKey nextStep, LongSupplier nowSupplier) {
+        long nowAsMillis = nowSupplier.getAsLong();
+        Settings.Builder newSettings = Settings.builder().put(existingSettings)
+            .put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction())
+            .put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
+            .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis)
+            // clear any step info or error-related settings from the current step
+            .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, (String) null)
+            .put(LifecycleSettings.LIFECYCLE_STEP_INFO, (String) null)
+            // We know we're transitioning phases and here, so update both
+            .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis)
+            .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowAsMillis);
         return newSettings;
     }
 
@@ -358,9 +425,16 @@ public class IndexLifecycleRunner {
 
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
         logger.debug("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
-                + nextStepKey);
+            + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-                nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index), newState)));
+            nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index), newState)));
+    }
+
+    private void moveToNextPhase(Index index, String policy, StepKey currentStepKey) {
+        logger.debug("moveToNextPhase[{}] [{}] finished [{}] phase, moving to next phase",
+            policy, index.getName(), currentStepKey.getPhase());
+        clusterService.submitStateUpdateTask("ILM-move-to-next-phase", new MoveToNextPhaseUpdateTask(index, policy, stepRegistry,
+            currentStepKey, null, nowSupplier));
     }
 
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {
