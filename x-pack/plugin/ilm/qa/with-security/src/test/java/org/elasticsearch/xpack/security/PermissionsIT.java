@@ -96,6 +96,7 @@ public class PermissionsIT extends ESRestTestCase {
      * user
      */
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33485")
     public void testCanManageIndexWithNoPermissions() throws Exception {
         createIndexAsAdmin("not-ilm", indexSettingsWithPolicy, "");
         Request request = new Request("GET", "/not-ilm/_ilm/explain");
