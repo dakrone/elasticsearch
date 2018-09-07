@@ -50,6 +50,11 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PolicyStepsRegistryTests extends ESTestCase {
     private static final Step.StepKey MOCK_STEP_KEY = new Step.StepKey("mock", "mock", "mock");
 
+    private IndexMetaData makeMeta(Index index) {
+        return IndexMetaData.builder(index.getName()).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    }
+
     public void testGetFirstStep() {
         String policyName = randomAlphaOfLengthBetween(2, 10);
         Step expectedFirstStep = new MockStep(MOCK_STEP_KEY, null);
@@ -73,7 +78,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Index index = new Index("test", "uuid");
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps, NamedXContentRegistry.EMPTY, null);
-        Step actualStep = registry.getStep(index, MOCK_STEP_KEY);
+        Step actualStep = registry.getCachedStep(makeMeta(index), MOCK_STEP_KEY);
         assertThat(actualStep, sameInstance(expectedStep));
     }
 
@@ -83,13 +88,13 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Index index = new Index("test", "uuid");
         Map<Index, List<Step>> indexSteps = Collections.singletonMap(index, Collections.singletonList(expectedStep));
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps, NamedXContentRegistry.EMPTY, null);
-        Step actualStep = registry.getStep(index, errorStepKey);
+        Step actualStep = registry.getCachedStep(makeMeta(index), errorStepKey);
         assertThat(actualStep, equalTo(expectedStep));
     }
 
     public void testGetStepUnknownPolicy() {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, Collections.emptyMap(), NamedXContentRegistry.EMPTY, null);
-        assertNull(registry.getStep(new Index("test", "uuid"), MOCK_STEP_KEY));
+        assertNull(registry.getCachedStep(makeMeta(new Index("test", "uuid")), MOCK_STEP_KEY));
     }
 
     public void testGetStepUnknownStepKey() {
@@ -99,7 +104,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PolicyStepsRegistry registry = new PolicyStepsRegistry(null, null, null, indexSteps, NamedXContentRegistry.EMPTY, null);
         Step.StepKey unknownStepKey = new Step.StepKey(MOCK_STEP_KEY.getPhase(),
             MOCK_STEP_KEY.getAction(),MOCK_STEP_KEY.getName() + "not");
-        assertNull(registry.getStep(index, unknownStepKey));
+        assertNull(registry.getCachedStep(makeMeta(index), unknownStepKey));
     }
 
     public void testUpdateFromNothingToSomethingToNothing() throws Exception {
@@ -169,7 +174,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
                 .build();
             registry.update(currentState);
             assertThat(registeredStepsForPolicy.get(step.getKey()), equalTo(step));
-            assertThat(registry.getStep(index, step.getKey()), equalTo(step));
+            assertThat(registry.getCachedStep(makeMeta(index), step.getKey()), equalTo(step));
         }
 
         Map<String, LifecyclePolicyMetadata> registryPolicyMap = registry.getLifecyclePolicyMap();
@@ -296,7 +301,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Step shrinkStep = registeredStepsForPolicy.entrySet().stream()
             .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
             .findFirst().get().getValue();
-        Step gotStep = registry.getStep(index, shrinkStep.getKey());
+        Step gotStep = registry.getCachedStep(makeMeta(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(1));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
 
@@ -322,7 +327,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         shrinkStep = registeredStepsForPolicy.entrySet().stream()
             .filter(e -> e.getKey().getPhase().equals("warm") && e.getKey().getName().equals("shrink"))
             .findFirst().get().getValue();
-        gotStep = registry.getStep(index, shrinkStep.getKey());
+        gotStep = registry.getCachedStep(makeMeta(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
     }
