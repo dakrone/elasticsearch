@@ -71,16 +71,18 @@ public class PolicyStepsRegistry {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.indexPhaseStepsCache = new ConcurrentHashMap<>();
-        for (Map.Entry<Index, List<Step>> indexSteps : indexPhaseSteps.entrySet()) {
-            Index index = indexSteps.getKey();
-            List<Step> steps = indexSteps.getValue();
+        if (indexPhaseSteps != null) {
+            for (Map.Entry<Index, List<Step>> indexSteps : indexPhaseSteps.entrySet()) {
+                Index index = indexSteps.getKey();
+                List<Step> steps = indexSteps.getValue();
 
-            ConcurrentHashMap<String, List<Step>> phaseStepCache = new ConcurrentHashMap<>();
-            for (Step step : steps) {
-                List<Step> stepList = phaseStepCache.computeIfAbsent(step.getKey().getPhase(), phase -> new ArrayList<>());
-                stepList.add(step);
+                ConcurrentHashMap<String, List<Step>> phaseStepCache = new ConcurrentHashMap<>();
+                for (Step step : steps) {
+                    List<Step> stepList = phaseStepCache.computeIfAbsent(step.getKey().getPhase(), phase -> new ArrayList<>());
+                    stepList.add(step);
+                }
+                indexPhaseStepsCache.put(index, phaseStepCache);
             }
-            indexPhaseStepsCache.put(index, phaseStepCache);
         }
     }
 
@@ -299,8 +301,7 @@ public class PolicyStepsRegistry {
         final Index index = indexMetaData.getIndex();
 
         if (policyName == null) {
-            throw new IllegalArgumentException("failed to retrieve step " + stepKey + " as index " +
-                indexMetaData.getIndex().getName() + " has no policy");
+            throw new IllegalArgumentException("failed to retrieve step " + stepKey + " as index [" + index.getName() + "] has no policy");
         }
 
         ConcurrentHashMap<String, List<Step>> stepPhaseCache = indexPhaseStepsCache.computeIfAbsent(index,
