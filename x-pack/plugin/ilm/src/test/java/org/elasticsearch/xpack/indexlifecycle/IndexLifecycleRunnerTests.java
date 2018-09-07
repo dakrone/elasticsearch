@@ -556,7 +556,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_STEP, "step_3")
                 .build();
         assertNull(IndexLifecycleRunner.getCurrentStep(registry, policyName, makeMeta(index), invalidIndexSettings));
-        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", makeMeta(new Index("test","bad")), invalidIndexSettings));
+        assertNull(IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist",
+            makeMeta(new Index("test","bad")), invalidIndexSettings));
     }
 
     public void testMoveClusterStateToNextStep() {
