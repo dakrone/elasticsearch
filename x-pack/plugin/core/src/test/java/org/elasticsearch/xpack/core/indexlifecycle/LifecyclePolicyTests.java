@@ -199,7 +199,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertSame(steps.get(0).getKey(), firstStepKey);
         assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
         assertThat(steps.get(1).getKey(), equalTo(secondStepKey));
-        assertThat(steps.get(1).getNextStepKey(), equalTo(mockStep.getKey()));
+        assertThat(steps.get(1).getNextStepKey(), equalTo(null));
         assertThat(steps.get(2).getKey(), equalTo(mockStep.getKey()));
         assertThat(steps.get(2).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
         assertSame(steps.get(3), TerminalPolicyStep.INSTANCE);
@@ -234,12 +234,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.get(0).getNextStepKey(), equalTo(init.getNextStepKey()));
         assertThat(steps.get(1).getClass(), equalTo(PhaseCompleteStep.class));
         assertThat(steps.get(1).getKey(), equalTo(firstAfter.getKey()));
-        assertThat(steps.get(1).getNextStepKey(), equalTo(firstAfter.getNextStepKey()));
+        assertThat(steps.get(1).getNextStepKey(), equalTo(null));
         assertThat(steps.get(2), equalTo(firstActionStep));
         assertThat(steps.get(3), equalTo(firstActionAnotherStep));
         assertThat(steps.get(4).getClass(), equalTo(PhaseCompleteStep.class));
         assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
-        assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
+        assertThat(steps.get(4).getNextStepKey(), equalTo(null));
         assertThat(steps.get(5), equalTo(secondActionStep));
         assertSame(steps.get(6), TerminalPolicyStep.INSTANCE);
     }
