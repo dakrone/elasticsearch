@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
@@ -41,17 +43,20 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
-    private PolicyStepsRegistry stepRegistry;
-    private ClusterService clusterService;
-    private LongSupplier nowSupplier;
+    private final Client client;
+    private final PolicyStepsRegistry stepRegistry;
+    private final ClusterService clusterService;
+    private final LongSupplier nowSupplier;
 
-    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService, LongSupplier nowSupplier) {
+    public IndexLifecycleRunner(Client client, PolicyStepsRegistry stepRegistry, ClusterService clusterService, LongSupplier nowSupplier) {
+        this.client = client;
         this.stepRegistry = stepRegistry;
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
@@ -257,6 +262,21 @@ public class IndexLifecycleRunner {
         }
     }
 
+    private static boolean stepExists(final ClusterState state, final Client client, final String policyName, final StepKey key) {
+        Optional<IndexLifecycleMetadata> meta = Optional.ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE));
+        return meta
+            .flatMap(m -> Optional.ofNullable(m.getPolicyMetadatas().get(policyName)))
+            .map(policyMeta -> {
+                final LifecyclePolicySecurityClient policyClient =
+                    new LifecyclePolicySecurityClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN, policyMeta.getHeaders());
+                return policyMeta.getPolicy().toSteps(policyClient);
+            })
+            .map(steps -> steps
+                .stream()
+                .anyMatch(step -> step.getKey().equals(key)))
+            .orElse(false);
+    }
+
     /**
      * This method is intended for handling moving to different steps from {@link TransportAction} executions.
      * For this reason, it is reasonable to throw {@link IllegalArgumentException} when state is not as expected.
@@ -286,7 +306,7 @@ public class IndexLifecycleRunner {
             throw new IllegalArgumentException("index [" + indexName + "] is not on current step [" + currentStepKey + "]");
         }
 
-        if (stepRegistry.stepExists(indexPolicySetting, nextStepKey) == false) {
+        if (stepExists(currentState, client, indexPolicySetting, nextStepKey) == false) {
             throw new IllegalArgumentException("step [" + nextStepKey + "] for index [" + idxMeta.getIndex().getName() +
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }

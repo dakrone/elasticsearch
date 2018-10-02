@@ -138,12 +138,13 @@ public class PolicyStepsRegistry {
         }
     }
 
-    private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
-        final PhaseExecutionInfo phaseExecutionInfo;
-        LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policy);
+    private static List<Step> parseStepsFromPhase(final LifecyclePolicyMetadata policyMetadata, final Client client,
+                                                  final NamedXContentRegistry xContentRegistry, final String policy,
+                                                  final String currentPhase, final String phaseDef) throws IOException {
         if (policyMetadata == null) {
             throw new IllegalStateException("unable to parse steps for policy [" + policy + "] as it doesn't exist");
         }
+        final PhaseExecutionInfo phaseExecutionInfo;
         LifecyclePolicy currentPolicy = policyMetadata.getPolicy();
         final LifecyclePolicy policyToExecute;
         if (InitializePolicyContextStep.INITIALIZATION_PHASE.equals(phaseDef)
@@ -163,7 +164,7 @@ public class PolicyStepsRegistry {
             policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
         }
         LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
-            ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());
+            ClientHelper.INDEX_LIFECYCLE_ORIGIN, policyMetadata.getHeaders());
         final List<Step> steps = policyToExecute.toSteps(policyClient);
         // Build a list of steps that correspond with the phase the index is currently in
         final List<Step> phaseSteps;
