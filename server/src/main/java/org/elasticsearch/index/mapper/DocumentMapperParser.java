@@ -137,6 +137,13 @@ public class DocumentMapperParser {
             docBuilder.meta(unmodifiableMap(new HashMap<>(meta)));
         }
 
+        // We don't support _all configuration in 7.0, but there may be 6.x
+        // indices that have it explicitly configured to be disabled. In that
+        // case we should silently ignore it since it is unsettable for future
+        // indices and always guaranteed to be disabled.
+        if (parserContext.indexVersionCreated().before(Version.V_7_0_0)) {
+            mapping.remove("_all");
+        }
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
         return docBuilder.build(mapperService);

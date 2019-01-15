@@ -19,15 +19,25 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocumentMapperParserTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Needed to set index created version
+        return false;
+    }
+
     public void testTypeLevel() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject());
@@ -98,5 +108,33 @@ public class DocumentMapperParserTests extends ESSingleNodeTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapperParser.parse("type", new CompressedXContent(mapping)));
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    }
+
+    public void testAllFieldFrom6xIndexIgnored() throws Exception {
+        IndexService indexService = createIndex("test", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
+            VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_7_0)).build());
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_all")
+            .field("enabled", false)
+            .endObject() // _all
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .endObject() // field
+            .endObject() // properties
+            .endObject().endObject());
+
+        // The 6.x index allows it, silently discarding it
+        mapperParser.parse("type", new CompressedXContent(mapping));
+
+        IndexService indexService2 = createIndex("test2", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        DocumentMapperParser mapperParser2 = indexService2.mapperService().documentMapperParser();
+
+        // The 7.0+ index does not
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapperParser2.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Root mapping definition has unsupported parameters:  [_all : {enabled=false}]", e.getMessage());
     }
 }
