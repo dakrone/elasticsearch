@@ -31,6 +31,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -88,7 +89,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             "expected id to be " + SnapshotRetentionService.SLM_RETENTION_JOB_ID + " but it was " + event.getJobName();
 
         final ClusterState state = clusterService.state();
-        if (SnapshotLifecycleService.ilmStoppedOrStopping(state)) {
+        if (OperationMode.slmStoppedOrStopping(state)) {
             logger.debug("skipping SLM retention as ILM is currently stopped or stopping");
             return;
         }

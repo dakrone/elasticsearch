@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +22,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.StartILMRequest;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
+import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
+import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
@@ -28,6 +36,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,6 +56,22 @@ import static org.hamcrest.Matchers.greaterThan;
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     static final String REPO = "my-repo";
+
+    @Before
+    public void enableILM() throws Exception {
+        client().execute(StartILMAction.INSTANCE, new StartILMRequest(), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertTrue(acknowledgedResponse.isAcknowledged());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("failed to start ILM", e);
+                fail("failed to start ILM: " + e);
+            }
+        });
+    }
 
     @After
     public void resetSLMSettings() throws Exception {
@@ -69,6 +94,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                         fail("exception cleanup up snapshot");
                     }
                 });
+        });
+        // Stop ILM so there are no more history items being written
+        client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get();
+        // Wait for ILM to be fully stopped
+        assertBusy(() -> {
+            GetStatusAction.Response resp = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
+            assertThat(resp.getMode(), equalTo(OperationMode.STOPPED));
         });
     }
 
@@ -124,7 +156,6 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46508")
     public void testRetentionWhileSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyId = "slm-policy";

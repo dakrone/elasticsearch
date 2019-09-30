@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.IOException;
 
@@ -59,8 +60,13 @@ public class SnapshotHistoryStore {
                 SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
             return;
         }
+        ClusterState state = clusterService.state();
+        if (OperationMode.slmStoppedOrStopping(state)) {
+            logger.debug("skipping indexing SLM history item as ILM is currently stopped or stopping");
+            return;
+        }
         logger.trace("about to index snapshot history item in index [{}]: [{}]", SLM_HISTORY_ALIAS, item);
-        ensureHistoryIndex(client, clusterService.state(), ActionListener.wrap(createdIndex -> {
+        ensureHistoryIndex(client, state, ActionListener.wrap(createdIndex -> {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 item.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 IndexRequest request = new IndexRequest(SLM_HISTORY_ALIAS)
