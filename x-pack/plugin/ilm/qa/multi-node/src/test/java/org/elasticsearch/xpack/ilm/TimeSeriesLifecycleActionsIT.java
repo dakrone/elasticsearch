@@ -461,7 +461,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void forceMergeActionWithCodec(String codec) throws Exception {
+    public void testForceMergeAction() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
@@ -484,7 +484,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             }
         };
         assertThat(numSegments.get(), greaterThan(1));
-        createNewSingletonPolicy("warm", new ForceMergeAction(1, codec));
+
+        createNewSingletonPolicy("warm", new ForceMergeAction(1));
         updatePolicy(index, policy);
 
         assertBusy(() -> {
@@ -494,10 +495,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
         expectThrows(ResponseException.class, this::indexDocument);
-    }
-
-    public void testForceMergeAction() throws Exception {
-        forceMergeActionWithCodec(null);
     }
 
     public void testShrinkAction() throws Exception {
@@ -1578,7 +1575,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         hotActions.put(RolloverAction.NAME,  new RolloverAction(null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
         warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
