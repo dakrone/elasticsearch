@@ -242,6 +242,10 @@ public class MetaDataIndexTemplateService {
     }
 
     public void putTemplate(final PutRequest request, final PutListener listener) {
+        if (request.name.equals("template")) {
+            logger.info("--> got:", (new IllegalArgumentException("AAAAAAA")));
+            throw new IllegalStateException("AAAAAAAAAAAAAA");
+        }
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
