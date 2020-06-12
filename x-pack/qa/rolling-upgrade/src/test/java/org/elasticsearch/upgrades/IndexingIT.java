@@ -67,7 +67,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
                         template.endObject();
                     }
                     template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
+                    Request createTemplate = new Request("PUT", "/_template/test-indexing-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
                     client().performRequest(createTemplate);
                 }

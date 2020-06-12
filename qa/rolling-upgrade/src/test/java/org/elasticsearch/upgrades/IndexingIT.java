@@ -88,7 +88,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                         template.endObject();
                     }
                     template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
+                    Request createTemplate = new Request("PUT", "/_template/indexingit-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
                     client().performRequest(createTemplate);
                 }
