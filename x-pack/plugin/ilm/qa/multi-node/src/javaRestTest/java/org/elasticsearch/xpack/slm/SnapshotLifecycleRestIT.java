@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,6 +67,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SnapshotLifecycleRestIT extends ESRestTestCase {
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
@@ -77,6 +81,24 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @Override
     protected boolean preserveILMPoliciesUponCompletion() {
         return true;
+    }
+
+    @Before
+    public void cleanupPolicy() throws Exception  {
+        // remove all SLM policies (so stats reset)
+        Request getAll = new Request("GET", "/_slm/policy");
+        Response response = client().performRequest(getAll);
+        try (InputStream is = response.getEntity().getContent()) {
+            Map<String, Object> policies = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            policies.keySet().forEach(policy -> {
+                try {
+                    Request remove = new Request("DELETE", "/_slm/policy/" + policy);
+                    client().performRequest(remove);
+                } catch (Exception e) {
+                    logger.warn(new ParameterizedMessage("failed to clean up SLM policy, {}", policy), e);
+                }
+            });
+        }
     }
 
     public void testMissingRepo() throws Exception {

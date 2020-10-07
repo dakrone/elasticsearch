@@ -101,6 +101,9 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * Returns a brand new {@link SnapshotLifecycleStats} of the current stats merged with (added on to) the provided stats
+     */
     public SnapshotLifecycleStats merge(SnapshotLifecycleStats other) {
 
         HashMap<String, SnapshotPolicyStats> newPolicyStats = new HashMap<>(this.policyStats);

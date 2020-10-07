@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
 import java.io.IOException;
@@ -79,11 +80,13 @@ public class TransportDeleteSnapshotLifecycleAction extends
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
                     Metadata metadata = currentState.metadata();
+                    final SnapshotLifecycleStats newStats = snapMeta.getStats();
+                    newStats.removePolicy(request.getLifecycleId());
+
                     return ClusterState.builder(currentState)
                         .metadata(Metadata.builder(metadata)
                             .putCustom(SnapshotLifecycleMetadata.TYPE,
-                                new SnapshotLifecycleMetadata(newConfigs,
-                                    snapMeta.getOperationMode(), snapMeta.getStats().removePolicy(request.getLifecycleId()))))
+                                new SnapshotLifecycleMetadata(newConfigs, snapMeta.getOperationMode(), newStats)))
                         .build();
                 }
             });

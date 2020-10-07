@@ -93,8 +93,13 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         return operationMode;
     }
 
+    /**
+     * Retrieve the stats for SLM. Note that this generates a new stats object, so it should not
+     * be used to increment statistics without creating a new {@link SnapshotLifecycleMetadata}
+     * object to go into a new cluster state.
+     */
     public SnapshotLifecycleStats getStats() {
-        return this.slmStats;
+        return new SnapshotLifecycleStats().merge(this.slmStats);
     }
 
     @Override
