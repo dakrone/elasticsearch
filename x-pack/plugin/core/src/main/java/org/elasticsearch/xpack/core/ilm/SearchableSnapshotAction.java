@@ -213,8 +213,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
                 if (this.snapshotRepository.equals(lifecycleExecutionState.getSnapshotRepository()) == false) {
                     // A different repository is being used
-                    // TODO: allow this behavior instead of throwing an exception
-                    throw new IllegalArgumentException("searchable snapshot indices may be converted only within the same repository");
+//                    throw new IllegalArgumentException("searchable snapshot indices may be converted only within the same repository");
+                    logger.debug("index [{}] in policy [{}] has an existing snapshot, but a different repository " +
+                        "([{}] vs [{}]) is specified so an additional snapshot and new index will be created",
+                        index.getName(), policyName, lifecycleExecutionState.getSnapshotRepository(), this.snapshotRepository);
+                    return false;
                 }
 
                 // We can skip the generate, initial cleanup, and snapshot taking for this index, as we already have a generated snapshot.
