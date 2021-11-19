@@ -11,9 +11,14 @@ package org.elasticsearch.common.collect;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -205,6 +210,22 @@ public class ImmutableOpenMapTests extends ESTestCase {
             collectedIteratively.add(s);
         }
         assertThat(collectedViaStream, equalTo(collectedIteratively));
+    }
+
+    public void testMapAgnosticSerialization() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        ImmutableOpenMap.Builder<String, Object> builder = ImmutableOpenMap.builder();
+        builder.put("foo", "bar");
+        builder.put("baz", Map.of("eggplant", "potato"));
+        ImmutableOpenMap<String, Object> original = builder.build();
+        out.writeMap(original, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().array());
+        ImmutableOpenMap<String, Object> serializedImmutable = in.readImmutableMap(StreamInput::readString, StreamInput::readGenericValue);
+        in = new ByteArrayStreamInput(out.bytes().array());
+        Map<String, Object> serializedNormal = in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+        assertThat(serializedImmutable, equalTo(original));
+        assertThat(serializedNormal, equalTo(original));
+        assertThat(serializedNormal, equalTo(serializedImmutable));
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {
