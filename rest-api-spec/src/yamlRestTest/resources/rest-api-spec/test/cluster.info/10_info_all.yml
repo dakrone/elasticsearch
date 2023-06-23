@@ -18,6 +18,18 @@ setup:
   - is_true: script
 
 ---
+"Cluster Info implicit _all":
+  - do:
+      cluster.info: {}
+
+  # this tests only checks that the target exists, to check the structure of them, we have specific tests
+  - is_true: cluster_name
+  - is_true: http
+  - is_true: ingest
+  - is_true: thread_pool
+  - is_true: script
+
+---
 "Cluster Info fails when mixing _all with other targets":
   - do:
       catch: bad_request

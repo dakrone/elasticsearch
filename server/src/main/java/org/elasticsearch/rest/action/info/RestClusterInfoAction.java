@@ -88,7 +88,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
         var nodesStatsRequest = new NodesStatsRequest().clear();
         var targets = Strings.tokenizeByCommaToSet(request.param("target"));
 
-        if (targets.size() == 1 && targets.contains("_all")) {
+        if (targets.size() == 0 || (targets.size() == 1 && targets.contains("_all"))) {
             targets.clear();
             AVAILABLE_TARGETS.forEach(m -> {
                 nodesStatsRequest.addMetric(m);
