@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -531,7 +532,24 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (primary.active()) {
             return false;
         }
-        return ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
+        boolean isNewlyCreatedAndInitializingReplica = ClusterShardHealth.getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
+        System.out.println("--> isNewlyCreatedAndInitializingReplica: " + isNewlyCreatedAndInitializingReplica);
+
+        Optional<UnassignedInfo> ui = Optional.ofNullable(routing.unassignedInfo());
+        System.out.println("--> has UI? " + ui.isPresent());
+
+        boolean isNewlyCreated = ui.filter(info -> info.failedAllocations() == 0)
+            .map(info -> info.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO)
+            .orElse(false);
+        System.out.println("--> isNewlyCreated: " + isNewlyCreated);
+        boolean hasBeenUnassignedLessThanThreshold = ui.map(info -> info.unassignedTimeNanos() < TimeValue.timeValueSeconds(5).nanos())
+            .orElse(false);
+        System.out.println("--> hasBeenUnassigned: " + hasBeenUnassignedLessThanThreshold);
+
+        // Return true if the replica is newly created an initializing from a
+        // primary, or it's newly created and has been unassigned less than a
+        // certain threshold
+        return isNewlyCreatedAndInitializingReplica || (isNewlyCreated && hasBeenUnassignedLessThanThreshold);
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {

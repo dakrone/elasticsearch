@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -2025,7 +2026,24 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         state = createClusterStateWith(List.of(index("index", new ShardAllocation("node", AVAILABLE))), List.of());
         assertFalse(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(replica, state));
 
-        ShardRouting unassignedReplica = createShardRouting(id, false, new ShardAllocation("node", UNAVAILABLE));
+        UnassignedInfo.Reason unassignedReason = randomFrom(UnassignedInfo.Reason.NODE_LEFT, UnassignedInfo.Reason.NODE_RESTARTING);
+        ShardAllocation unavailableAllocation = new ShardAllocation(
+            "node",
+            UNAVAILABLE,
+            new UnassignedInfo(
+                unassignedReason,
+                "message",
+                null,
+                0,
+                TimeValue.timeValueMinutes(1).nanos(),
+                TimeValue.timeValueMinutes(1).millis(),
+                randomBoolean(),
+                randomFrom(UnassignedInfo.AllocationStatus.values()),
+                Set.of(),
+                unassignedReason == UnassignedInfo.Reason.NODE_LEFT ? null : randomAlphaOfLength(20)
+            )
+        );
+        ShardRouting unassignedReplica = createShardRouting(id, false, unavailableAllocation);
         state = createClusterStateWith(
             List.of(idxMeta),
             List.of(index("index", "uuid", new ShardAllocation("node", UNAVAILABLE))),
@@ -2043,8 +2061,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 "message",
                 null,
                 0,
-                0,
-                0,
+                TimeValue.timeValueMinutes(1).nanos(),
+                TimeValue.timeValueMinutes(1).millis(),
                 randomBoolean(),
                 randomFrom(UnassignedInfo.AllocationStatus.values()),
                 Set.of(),
@@ -2063,6 +2081,35 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         state = createClusterStateWith(
             List.of(idxMeta),
             List.of(index(idxMeta, new ShardAllocation("node", CREATING), allocation)),
+            List.of(),
+            List.of()
+        );
+        assertTrue(ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(unallocatedReplica, state));
+
+        reason = randomFrom(UnassignedInfo.Reason.NODE_LEFT, UnassignedInfo.Reason.NODE_RESTARTING);
+        allocation = new ShardAllocation(
+            "node",
+            UNAVAILABLE,
+            new UnassignedInfo(
+                reason,
+                "message",
+                null,
+                0,
+                randomLongBetween(1, 1024),
+                randomLongBetween(1, 1024),
+                randomBoolean(),
+                randomValueOtherThan(
+                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                    () -> randomFrom(UnassignedInfo.AllocationStatus.values())
+                ),
+                Set.of(),
+                reason == UnassignedInfo.Reason.NODE_LEFT ? null : randomAlphaOfLength(20)
+            )
+        );
+        unallocatedReplica = createShardRouting(id, false, allocation);
+        state = createClusterStateWith(
+            List.of(idxMeta),
+            List.of(index(idxMeta, new ShardAllocation("node", UNAVAILABLE), allocation)),
             List.of(),
             List.of()
         );
