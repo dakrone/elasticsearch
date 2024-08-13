@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 
-public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAction<
+public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
     DataStreamsStatsAction.DataStreamShardStats> {
@@ -54,7 +54,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     private final IndicesService indicesService;
 
     @Inject
-    public DataStreamsStatsTransportAction(
+    public TransportDataStreamsStatsAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,

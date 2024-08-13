@@ -58,6 +58,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
         private boolean includeDefaults = false;
+        private boolean verbose = false;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);
@@ -68,6 +69,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
+        }
+
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults, boolean verbose) {
+            super(masterNodeTimeout);
+            this.names = names;
+            this.includeDefaults = includeDefaults;
+            this.verbose = verbose;
         }
 
         @Deprecated(forRemoval = true) // temporary compatibility shim
@@ -93,6 +101,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             } else {
                 this.includeDefaults = false;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_VERBOSE_RETRIEVAL)) {
+                this.verbose = in.readBoolean();
+            } else {
+                this.verbose = false;
+            }
         }
 
         @Override
@@ -103,6 +116,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DATA_STREAM_VERBOSE_RETRIEVAL)) {
+                out.writeBoolean(verbose);
+            }
         }
 
         @Override
@@ -112,12 +128,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Request request = (Request) o;
             return Arrays.equals(names, request.names)
                 && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+                && includeDefaults == request.includeDefaults
+                && verbose == verbose;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions, includeDefaults, verbose);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -134,6 +151,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public boolean includeDefaults() {
             return includeDefaults;
+        }
+
+        public boolean verbose() {
+            return verbose;
         }
 
         public Request indicesOptions(IndicesOptions indicesOptions) {
@@ -154,6 +175,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Request includeDefaults(boolean includeDefaults) {
             this.includeDefaults = includeDefaults;
+            return this;
+        }
+
+        public Request verbose(boolean verbose) {
+            this.verbose = verbose;
             return this;
         }
     }

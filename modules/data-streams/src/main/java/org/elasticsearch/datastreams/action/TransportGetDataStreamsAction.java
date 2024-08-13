@@ -50,17 +50,18 @@ import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction<
     GetDataStreamAction.Request,
     GetDataStreamAction.Response> {
 
-    private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportGetDataStreamsAction.class);
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
     private final DataStreamGlobalRetentionProvider dataStreamGlobalRetentionProvider;
+    private final TransportService transportService;
 
     @Inject
-    public GetDataStreamsTransportAction(
+    public TransportGetDataStreamsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -83,6 +84,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         this.systemIndices = systemIndices;
         this.dataStreamGlobalRetentionProvider = dataStreamGlobalRetentionProvider;
         clusterSettings = clusterService.getClusterSettings();
+        this.transportService = transportService;
     }
 
     @Override
@@ -107,6 +109,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
     ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
+        transportService.
         for (DataStream dataStream : dataStreams) {
             final String indexTemplate;
             boolean indexTemplatePreferIlmValue = true;
