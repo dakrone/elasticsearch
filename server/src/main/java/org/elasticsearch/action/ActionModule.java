@@ -235,6 +235,7 @@ import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.health.stats.HealthApiStatsTransportAction;
 import org.elasticsearch.http.HttpPreRequest;
+import org.elasticsearch.index.rename.TransportRenameIndexAction;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -347,6 +348,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestReloadAnalyzersAction;
+import org.elasticsearch.rest.action.admin.indices.RestRenameIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestResolveClusterAction;
 import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
@@ -742,6 +744,7 @@ public class ActionModule extends AbstractModule {
         actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
         actions.register(MasterHistoryAction.INSTANCE, MasterHistoryAction.TransportAction.class);
         actions.register(CoordinationDiagnosticsAction.INSTANCE, CoordinationDiagnosticsAction.TransportAction.class);
+        actions.register(TransportRenameIndexAction.TYPE, TransportRenameIndexAction.class);
 
         // Indexed scripts
         actions.register(TransportPutStoredScriptAction.TYPE, TransportPutStoredScriptAction.class);
@@ -1001,6 +1004,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatComponentTemplateAction());
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
+        registerHandler.accept(new RestRenameIndexAction());
 
         // Desired nodes
         registerHandler.accept(new RestGetDesiredNodesAction());
