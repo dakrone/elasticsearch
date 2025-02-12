@@ -376,6 +376,31 @@ public final class IngestDocument {
         );
     }
 
+    /**
+     * Removes the field identified by the provided raw field name.
+     * @param rawField the path of the field to be removed
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
+     */
+    public void removeFieldRaw(String rawField) {
+        final FieldPath fieldPath = FieldPath.of(rawField);
+        Object context = fieldPath.initialContext(this);
+
+        if (context instanceof Map<?, ?> map) {
+            if (map.containsKey(rawField)) {
+                map.remove(rawField);
+                return;
+            }
+            throw new IllegalArgumentException("field [" + rawField + "] not present as part of path [" + rawField + "]");
+        }
+
+        if (context == null) {
+            throw new IllegalArgumentException("cannot remove [" + rawField + "] from null");
+        }
+        throw new IllegalArgumentException(
+            "cannot remove [" + rawField + "] from object of type [" + context.getClass().getName() + "]"
+        );
+    }
+
     private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
         if (context == null) {
             return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");

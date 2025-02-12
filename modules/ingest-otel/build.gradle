@@ -1,0 +1,66 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.OS
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description = 'Ingest plugin for OTel-formatted data'
+  classname ='org.elasticsearch.ingest.otel.IngestOTelPlugin'
+
+  bundleSpec.from("${project.buildDir}/ingest-otel") {
+    into '/'
+  }
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+dependencies {
+  // implementation('com.maxmind.geoip2:geoip2:4.2.1')
+  // // geoip2 dependencies:
+  // runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  // runtimeOnly("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  // runtimeOnly("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  // implementation('com.maxmind.db:maxmind-db:3.1.1')
+
+  // testImplementation 'org.elasticsearch:geolite2-databases:20191119'
+  // internalClusterTestImplementation project(':modules:reindex')
+  // internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  // yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
+
+  // clusterModules project(':modules:reindex')
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
+// tasks.named("internalClusterTest") {
+//   onlyIf("OS != windows") { OS.current() != OS.WINDOWS }
+// }
+
+// artifacts {
+//   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+// }
+
+// tasks.named("yamlRestCompatTestTransform").configure({ task ->
+//   task.skipTest("ingest_geoip/40_geoip_databases/Test adding, getting, and removing geoip databases",
+//     "get databases behavior began returning more results in 8.16")
+// })
