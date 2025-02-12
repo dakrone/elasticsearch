@@ -568,6 +568,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failedShardsCache.containsKey(shardId) == false) {
                 final Index index = shardRouting.index();
                 final var indexService = indicesService.indexService(index);
+                logger.info("--> shard {} thinks its SR index is {}, indexService: {}", shardId, index, indexService);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
                     sendFailShard(

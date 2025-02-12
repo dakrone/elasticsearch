@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 
 /**
@@ -40,6 +41,12 @@ public abstract class AliasAction {
      */
     abstract boolean removeIndex();
 
+    /**
+     * TODO: document
+     */
+    Tuple<String, String> rename() {
+        return null;
+    }
     /**
      * Apply the action.
      *
@@ -216,6 +223,34 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * TODO: document
+     */
+    public static class RenameIndex extends AliasAction {
+        private final String destination;
+
+        public RenameIndex(String index, String destination) {
+            super(index);
+            this.destination = destination;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        Tuple<String, String> rename() {
+            return new Tuple<>(getIndex(), destination);
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            metadata.put(IndexMetadata.builder(index).index(destination)).remove(index.getIndex().getName());
+            return true;
         }
     }
 
