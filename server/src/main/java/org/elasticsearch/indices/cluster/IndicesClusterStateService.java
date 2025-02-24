@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -88,6 +89,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -308,6 +310,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             }
             return;
         }
+
+        renameIndices(event); // handle renames of indices, if necessary
 
         updateFailedShardsCache(state);
 
@@ -568,7 +572,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failedShardsCache.containsKey(shardId) == false) {
                 final Index index = shardRouting.index();
                 final var indexService = indicesService.indexService(index);
-                logger.info("--> shard {} thinks its SR index is {}, indexService: {}", shardId, index, indexService);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
                     sendFailShard(
@@ -629,6 +632,46 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             createShard(shardRouting, state);
         } else {
             updateShard(shardRouting, shard, state);
+        }
+    }
+
+    private void renameIndices(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return;
+        }
+        final ClusterState state = event.state();
+        for (AllocatedIndex<? extends Shard> indexService : indicesService) {
+            final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
+            final Index index = indexService.getIndexSettings().getIndex();
+            final IndexMetadata newIndexMetadata = state.metadata().index(index);
+            assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
+
+            logger.info("--> checking rename for [{}]", index.getName());
+            if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
+                // If the new index metadata is null, it's because the current state doesn't "see"
+                // the renamed index under that name yet, so we need to make changes to rename the
+                // index everywhere it's necessary.
+                final Map<String, String> custom = newIndexMetadata.getCustomData(
+                    MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY
+                );
+                logger.info("--> got custom [{}] for [{}]", custom, index.getName());
+                if (custom == null || custom.isEmpty()) {
+                    return;
+                }
+                final String originalName = custom.get("original_name");
+                final String destinationName = custom.get("new_name");
+
+                // What is my current name?
+                final String currentName = index.getName();
+                if (currentName.equals(destinationName) == false) {
+                    // The name doesn't match, some renaming needs to happen
+                    logger.info("--> name doesn't match, I'm [{}] but I'm supposed to be [{}]", currentName, destinationName);
+                } else {
+                    logger.info("--> name matches, I'm [{}] and I was previously [{}]", currentName, originalName);
+                }
+            } else {
+                logger.info("--> looks like [{}] is unchanged", index.getName());
+            }
         }
     }
 

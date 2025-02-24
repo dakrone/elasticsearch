@@ -57,6 +57,8 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
  */
 public class MetadataIndexAliasesService {
 
+    public static final String CUSTOM_RENAME_METADATA_KEY = "index_rename";
+
     private final IndicesService indicesService;
 
     private final NamedXContentRegistry xContentRegistry;
@@ -199,26 +201,27 @@ public class MetadataIndexAliasesService {
             if (changed) {
                 ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).build();
 
-                RoutingTable existingRoutingTable = currentState.routingTable();
-                RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
-                for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
-                    final String oldName = renamedIndex.getKey();
-                    final String newName = renamedIndex.getValue();
-                    System.out.println("--> updating routing table for " + oldName + " ==> " + newName);
-                    IndexRoutingTable indexTable = existingRoutingTable.index(oldName);
-                    IndexMetadata im = updatedState.getMetadata().index(newName);
-                    System.out.println("--> building a new routing table for " + im.getIndex());
-                    IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(im.getIndex());
-                    for (ShardRouting sr : indexTable.randomAllActiveShardsIt()) {
-                        tableBuilder.addShard(sr.updateIndex(im.getIndex()));
-                    }
-                    rtBuilder.add(tableBuilder);
-                    rtBuilder.remove(oldName);
-                    updatedState = ClusterState.builder(updatedState).routingTable(rtBuilder).build();
-                }
+                // TODO: move this rename logic to a service that looks at the custom map in the IndexMetadata and does the right thing
+//                RoutingTable existingRoutingTable = currentState.routingTable();
+//                RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
+//                for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
+//                    final String oldName = renamedIndex.getKey();
+//                    final String newName = renamedIndex.getValue();
+//                    System.out.println("--> updating routing table for " + oldName + " ==> " + newName);
+//                    IndexRoutingTable indexTable = existingRoutingTable.index(oldName);
+//                    IndexMetadata im = updatedState.getMetadata().index(newName);
+//                    System.out.println("--> building a new routing table for " + im.getIndex());
+//                    IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(im.getIndex());
+//                    for (ShardRouting sr : indexTable.randomAllActiveShardsIt()) {
+//                        tableBuilder.addShard(sr.updateIndex(im.getIndex()));
+//                    }
+//                    rtBuilder.add(tableBuilder);
+//                    rtBuilder.remove(oldName);
+//                    updatedState = ClusterState.builder(updatedState).routingTable(rtBuilder).build();
+//                }
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (updatedState.metadata().equalsAliases(currentState.metadata()) == false) {
+                if (renamedIndices.isEmpty() == false || updatedState.metadata().equalsAliases(currentState.metadata()) == false) {
                     return updatedState;
                 }
             }

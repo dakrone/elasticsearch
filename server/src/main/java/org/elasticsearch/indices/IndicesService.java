@@ -943,6 +943,21 @@ public class IndicesService extends AbstractLifecycleComponent
         );
     }
 
+    /**
+     * TODO: use and document this method
+     */
+    public void renameIndex(final Index index, final String newName) {
+        final String indexName = index.getName();
+        synchronized (this) {
+            IndexService service = indices.get(indexName);
+            if (service == null) {
+                return;
+            }
+            indices = Maps.copyMapWithAddedEntry(indices, newName, service);
+            indices = Maps.copyMapWithRemovedEntry(indices, indexName);
+        }
+    }
+
     @Override
     public void removeIndex(
         final Index index,
