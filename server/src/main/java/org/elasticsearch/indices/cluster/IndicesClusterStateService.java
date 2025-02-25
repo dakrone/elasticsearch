@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -672,14 +673,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
                     // Need to do the actual rename now:
                     logger.info("==> kicking off a cluster state update to rename metadata");
+                    final Index newIndex = new Index(destinationName, index.getUUID());
                     clusterService.submitUnbatchedStateUpdateTask(
                         "rename from [" + originalName + "] to [" + destinationName + "]",
                         new ClusterStateUpdateTask() {
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
+                                RoutingTable existingRoutingTable = currentState.routingTable();
+                                RoutingTable.Builder rtBuilder = RoutingTable.builder(existingRoutingTable);
+                                logger.info("==> updating routing table for {} ==> {}", originalName, destinationName);
+                                IndexRoutingTable indexTable = existingRoutingTable.index(originalName);
+                                logger.info("==> building a new routing table for " + index);
+                                IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(
+                                    new Index(destinationName, index.getUUID())
+                                );
+                                for (ShardRouting sr : indexTable.randomAllActiveShardsIt()) {
+                                    tableBuilder.addShard(sr.updateIndex(newIndex));
+                                }
+                                rtBuilder.add(tableBuilder);
+                                rtBuilder.remove(originalName);
+
+                                ClusterState updatedState = ClusterState.builder(currentState).routingTable(rtBuilder).build();
+
                                 logger.info("==> modifying index name in IndexMetadata");
                                 IndexMetadata currentMetadata = currentState.metadata().index(index);
-                                ClusterState newState = ClusterState.builder(currentState)
+                                updatedState = ClusterState.builder(updatedState)
                                     .metadata(
                                         Metadata.builder(currentState.metadata())
                                             // Add the metadata under the new name
@@ -692,13 +710,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                             .remove(index.getName())
                                     )
                                     .build();
-                                return newState;
+                                return updatedState;
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 logger.error("failed to rename metadata", e);
                             }
+
                         }
                     );
                 } else {
