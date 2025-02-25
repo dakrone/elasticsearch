@@ -948,6 +948,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void renameIndex(final Index index, final String newName) {
         final String indexName = index.getName();
+        // Grab the index service and put it under the new name
         synchronized (this) {
             IndexService service = indices.get(indexName);
             if (service == null) {
@@ -956,6 +957,13 @@ public class IndicesService extends AbstractLifecycleComponent
             indices = Maps.copyMapWithAddedEntry(indices, newName, service);
             indices = Maps.copyMapWithRemovedEntry(indices, indexName);
         }
+        // Do the same with the pending deletes
+        synchronized (pendingDeletes) {
+            var pending = pendingDeletes.remove(indexName);
+            pendingDeletes.put(new Index(newName, index.getUUID()), pending);
+        }
+
+        // There is undoubtedly more that needs to be done here.
     }
 
     @Override

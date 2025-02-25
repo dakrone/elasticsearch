@@ -217,6 +217,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
+        public void renameIndex(Index index, String newName) {
+            throw new UnsupportedOperationException("I don't support renaming!");
+        }
+
+        @Override
         public synchronized void removeIndex(
             Index index,
             IndexRemovalReason reason,

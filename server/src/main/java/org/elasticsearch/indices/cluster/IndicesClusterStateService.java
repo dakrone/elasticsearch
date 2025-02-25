@@ -24,8 +24,10 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -644,16 +646,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
             final Index index = indexService.getIndexSettings().getIndex();
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
-            assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
+            // assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
 
             logger.info("--> checking rename for [{}]", index.getName());
-            if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
+            if (newIndexMetadata != null && ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
                 // If the new index metadata is null, it's because the current state doesn't "see"
                 // the renamed index under that name yet, so we need to make changes to rename the
                 // index everywhere it's necessary.
-                final Map<String, String> custom = newIndexMetadata.getCustomData(
-                    MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY
-                );
+                final Map<String, String> custom = newIndexMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
                 logger.info("--> got custom [{}] for [{}]", custom, index.getName());
                 if (custom == null || custom.isEmpty()) {
                     return;
@@ -666,6 +666,41 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 if (currentName.equals(destinationName) == false) {
                     // The name doesn't match, some renaming needs to happen
                     logger.info("--> name doesn't match, I'm [{}] but I'm supposed to be [{}]", currentName, destinationName);
+
+                    logger.info("==> renaming index in indicesService");
+                    indicesService.renameIndex(index, destinationName);
+
+                    // Need to do the actual rename now:
+                    logger.info("==> kicking off a cluster state update to rename metadata");
+                    clusterService.submitUnbatchedStateUpdateTask(
+                        "rename from [" + originalName + "] to [" + destinationName + "]",
+                        new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                logger.info("==> modifying index name in IndexMetadata");
+                                IndexMetadata currentMetadata = currentState.metadata().index(index);
+                                ClusterState newState = ClusterState.builder(currentState)
+                                    .metadata(
+                                        Metadata.builder(currentState.metadata())
+                                            // Add the metadata under the new name
+                                            .put(
+                                                IndexMetadata.builder(currentMetadata)
+                                                    .index(destinationName)
+                                                    .putCustom(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY, Map.of())
+                                            )
+                                            // Remove the existing one
+                                            .remove(index.getName())
+                                    )
+                                    .build();
+                                return newState;
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error("failed to rename metadata", e);
+                            }
+                        }
+                    );
                 } else {
                     logger.info("--> name matches, I'm [{}] and I was previously [{}]", currentName, originalName);
                 }
@@ -1294,6 +1329,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * but does not deal with in-memory structures. For those call {@link #removeIndex}
          */
         void deleteUnassignedIndex(String reason, IndexMetadata metadata, ClusterState clusterState);
+
+        /**
+         * Renames an index for a new name
+         */
+        void renameIndex(Index index, String newName);
 
         /**
          * Removes the given index from this service and releases all associated resources. Persistent parts of the index
