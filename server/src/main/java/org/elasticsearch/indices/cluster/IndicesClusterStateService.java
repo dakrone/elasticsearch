@@ -387,6 +387,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
+            IndexMetadata previousMetadata = previousState.metadata().index(index);
+            if (previousMetadata != null
+                && previousMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY) != null) {
+                Map<String, String> custom = previousMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
+                String originalName = custom.get("original_name");
+                String newName = custom.get("new_name");
+                if (originalName != null && newName != null && originalName.equals(newName) == false) {
+                    // skip the deletion, this index is being renamed!
+                    logger.info("==> skipping deletion for index [{}] being renamed to [{}]", originalName, newName);
+                    return;
+                }
+            }
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
             }
@@ -574,6 +586,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failedShardsCache.containsKey(shardId) == false) {
                 final Index index = shardRouting.index();
                 final var indexService = indicesService.indexService(index);
+                logger.info("--> checking if [{}] has a failed indexService [{}]", index, indexService);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
                     sendFailShard(
@@ -648,13 +661,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
             // assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
 
-            logger.info("--> checking rename for [{}]", index.getName());
+            logger.info("--> checking rename for [{}]", index);
             if (newIndexMetadata != null && ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
                 // If the new index metadata is null, it's because the current state doesn't "see"
                 // the renamed index under that name yet, so we need to make changes to rename the
                 // index everywhere it's necessary.
                 final Map<String, String> custom = newIndexMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
-                logger.info("--> got custom [{}] for [{}]", custom, index.getName());
+                logger.info("--> got custom [{}] for [{}]", custom, index);
                 if (custom == null || custom.isEmpty()) {
                     return;
                 }

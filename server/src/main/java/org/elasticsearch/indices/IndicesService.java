@@ -574,6 +574,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     @Nullable
     public IndexService indexService(Index index) {
+        logger.info("--> checking for {}, UUIDs I know about: {}", index, indices.keySet());
         return indices.get(index.getUUID());
     }
 
@@ -950,12 +951,14 @@ public class IndicesService extends AbstractLifecycleComponent
         final String indexName = index.getName();
         // Grab the index service and put it under the new name
         synchronized (this) {
-            IndexService service = indices.get(indexName);
+            IndexService service = indices.get(index.getUUID());
             if (service == null) {
+                logger.info("--> tried to rename an index [{}] with a null service!", index);
                 return;
             }
-            indices = Maps.copyMapWithAddedEntry(indices, newName, service);
-            indices = Maps.copyMapWithRemovedEntry(indices, indexName);
+            // TODO: do we need these? It appears the map key is UUID, which is not changing
+            // indices = Maps.copyMapWithAddedEntry(indices, newName, service);
+            // indices = Maps.copyMapWithRemovedEntry(indices, indexName);
         }
         // Do the same with the pending deletes
         synchronized (pendingDeletes) {
@@ -983,7 +986,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexEventListener listener;
             synchronized (this) {
                 if (hasIndex(index)) {
-                    logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
+                    logger.info("[{}] closing ... (reason [{}])", indexName, reason);
                     indexService = indices.get(index.getUUID());
                     assert indexService != null : "IndexService is null for index: " + index;
                     indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
@@ -1002,9 +1005,9 @@ public class IndicesService extends AbstractLifecycleComponent
             }
 
             listener.beforeIndexRemoved(indexService, reason);
-            logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
+            logger.info("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED, shardCloseExecutor, ActionListener.runBefore(l, () -> {
-                logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+                logger.info("{} closed... (reason [{}][{}])", index, reason, extraInfo);
                 final IndexSettings indexSettings = indexService.getIndexSettings();
                 listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
                 if (reason == IndexRemovalReason.DELETED) {
