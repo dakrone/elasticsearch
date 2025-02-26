@@ -92,7 +92,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -687,9 +686,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 IndexRoutingTable.Builder tableBuilder = IndexRoutingTable.builder(
                                     new Index(destinationName, index.getUUID())
                                 );
-                                for (ShardRouting sr : indexTable.randomAllActiveShardsIt()) {
-                                    tableBuilder.addShard(sr.updateIndex(newIndex));
-                                }
+
+                                indexTable.allShards().forEach(shard -> tableBuilder.addIndexShard(shard.rename(newIndex)));
+
                                 rtBuilder.add(tableBuilder);
                                 rtBuilder.remove(originalName);
 
