@@ -92,6 +92,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -375,6 +376,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    private static boolean isBeingRenamed(@Nullable IndexMetadata indexMetadata) {
+        logger.info(
+            "--> checking if [{}] is being renamed",
+            Optional.ofNullable(indexMetadata).map(IndexMetadata::getIndex).map(Index::getName).orElse("<null>")
+        );
+        if (indexMetadata == null) {
+            return false;
+        }
+        if (indexMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY) != null) {
+            Map<String, String> custom = indexMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
+            String originalName = custom.get("original_name");
+            String newName = custom.get("new_name");
+            if (originalName != null && newName != null && originalName.equals(newName) == false) {
+                logger.info("==> index [{}] IS being renamed to [{}]", originalName, newName);
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Deletes indices (with shard data).
      *
@@ -388,16 +409,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         for (Index index : event.indicesDeleted()) {
             IndexMetadata previousMetadata = previousState.metadata().index(index);
-            if (previousMetadata != null
-                && previousMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY) != null) {
-                Map<String, String> custom = previousMetadata.getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY);
-                String originalName = custom.get("original_name");
-                String newName = custom.get("new_name");
-                if (originalName != null && newName != null && originalName.equals(newName) == false) {
-                    // skip the deletion, this index is being renamed!
-                    logger.info("==> skipping deletion for index [{}] being renamed to [{}]", originalName, newName);
-                    return;
-                }
+            if (isBeingRenamed(previousMetadata)) {
+                logger.info("==> skipping deletion because index is being renamed");
+                continue;
             }
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
@@ -480,6 +494,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      */
     private void removeIndicesAndShards(final ClusterChangedEvent event) {
         final ClusterState state = event.state();
+        final ClusterState previousState = event.previousState();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 
@@ -493,6 +508,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
+                if (isBeingRenamed(previousState.metadata().index(index))) {
+                    logger.info("==> skipping removal because index is being renamed");
+                    continue;
+                }
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the
                 // contents on disk because the index will later be re-imported as a
@@ -746,10 +765,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
         final ClusterState state = event.state();
+        final ClusterState previousState = event.previousState();
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
             final Index index = indexService.getIndexSettings().getIndex();
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
+            if (newIndexMetadata == null && isBeingRenamed(previousState.metadata().index(index))) {
+                logger.info("--> skipping update for rename-in-progress for [{}]", index.getName());
+                continue;
+            }
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
                 String reason = null;
