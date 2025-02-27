@@ -302,6 +302,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             for (AllocatedIndex<? extends Shard> indexService : indicesService) {
+                if (indexService.getIndexSettings()
+                    .getIndexMetadata()
+                    .getCustomData(MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY)
+                    .isEmpty() == false) {
+                    logger.info("==> skipping shard clean for {} because it's being renamed", indexService.getIndexSettings().getIndex());
+                    continue;
+                } else {
+                    logger.info(">>> index {} is not being renamed", indexService.getIndexSettings().getIndex());
+                }
                 // also cleans shards
                 indicesService.removeIndex(
                     indexService.getIndexSettings().getIndex(),
@@ -538,6 +547,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
+            if (indexService.isRenamed()) {
+                logger.info(">>> skipping removal of {} index service or shards because it's being renamed", index);
+                continue;
+            }
+
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
@@ -619,7 +633,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failedShardsCache.containsKey(shardId) == false) {
                 final Index index = shardRouting.index();
                 final var indexService = indicesService.indexService(index);
-                logger.info("--> checking if [{}] has a failed indexService [{}]", index, indexService);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
                     // the master thinks we are active, but we don't have this shard at all, mark it as failed
                     sendFailShard(
@@ -1032,7 +1045,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         final long primaryTerm;
         try {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(shard.shardId().getIndex());
+            final var indexService = indicesService.indexService(shardRouting.index());
+            final boolean isBeingRenamed = indexService != null && indexService.isRenamed();
+            final IndexMetadata indexMetadata = indexService == null
+                ? clusterState.metadata().index(shard.shardId().getIndex())
+                : getIndexMetadataFromState(clusterState, indexService);
             primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
             final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable().shardRoutingTable(shardRouting.shardId());
@@ -1042,7 +1059,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryReplicaSyncer::resync,
                 clusterState.version(),
                 inSyncIds,
-                indexShardRoutingTable
+                indexShardRoutingTable,
+                isBeingRenamed
             );
         } catch (Exception e) {
             failAndRemoveShard(
@@ -1333,7 +1351,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable
+            IndexShardRoutingTable routingTable,
+            boolean isRenamed
         ) throws IOException;
     }
 
