@@ -956,6 +956,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 logger.info("--> tried to rename an index [{}] with a null service!", index);
                 return;
             }
+            service.renameTo(newName);
             // TODO: do we need these? It appears the map key is UUID, which is not changing
             // indices = Maps.copyMapWithAddedEntry(indices, newName, service);
             // indices = Maps.copyMapWithRemovedEntry(indices, indexName);

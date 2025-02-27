@@ -397,6 +397,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
+     * @return the IndexMetadata from the given cluster state using either the original or the renamed name of the index.
+     */
+    private static IndexMetadata getIndexMetadataFromState(ClusterState clusterState, AllocatedIndex<? extends Shard> indexService) {
+        if (indexService.isRenamed()) {
+            assert indexService.getRenamedIndex() != null;
+            logger.info("--> Found renamed index [{} -> {}]", indexService.getIndexSettings().getIndex(), indexService.getRenamedIndex());
+            IndexMetadata indexMetadata = clusterState.metadata().index(indexService.getIndexSettings().getIndex());
+            if (indexMetadata == null) {
+                logger.info("Cluster state knows about the new name [{}]", indexService.getRenamedIndex());
+                return clusterState.metadata().index(indexService.getRenamedIndex());
+            } else {
+                logger.info("Cluster state knows about the original name[{}]", indexService.getIndexSettings().getIndex());
+            }
+        }
+        return clusterState.metadata().index(indexService.getIndexSettings().getIndex());
+    }
+
+    /**
      * Deletes indices (with shard data).
      *
      * @param event cluster change event
@@ -500,18 +518,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         RoutingNode localRoutingNode = state.getRoutingNodes().node(localNodeId);
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            final Index index = indexService.getIndexSettings().getIndex();
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final Index index = indexService.isRenamed() ? indexService.getRenamedIndex() : indexService.getIndexSettings().getIndex();
+            final IndexMetadata indexMetadata = getIndexMetadataFromState(state, indexService);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             AllocatedIndices.IndexRemovalReason reason = null;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
-            } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
-                if (isBeingRenamed(previousState.metadata().index(index))) {
-                    logger.info("==> skipping removal because index is being renamed");
-                    continue;
-                }
+            } else if (localRoutingNode == null || localRoutingNode.hasIndex(index.getUUID()) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the
                 // contents on disk because the index will later be re-imported as a
@@ -1329,6 +1343,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Returns the index settings of this index.
          */
         IndexSettings getIndexSettings();
+
+        /**
+         * Returns the renamed index, if it exists.
+         */
+        @Nullable
+        default Index getRenamedIndex() {
+            return null;
+        }
+
+        /**
+         * Returns true if the service has been renamed.
+         */
+        default boolean isRenamed() {
+            return false;
+        }
 
         /**
          * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.
