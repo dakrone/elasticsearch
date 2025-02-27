@@ -760,7 +760,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             null,
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
-            newRoutingTable
+            newRoutingTable,
+            false
         );
     }
 
@@ -870,7 +871,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             null,
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
-            routingTable
+            routingTable,
+            false
         );
         try {
             PlainActionFuture<RecoveryResponse> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
@@ -904,7 +906,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             null,
             currentClusterStateVersion.incrementAndGet(),
             inSyncIdsWithReplica,
-            newRoutingTable
+            newRoutingTable,
+            false
         );
         replica.updateShardState(
             replica.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
@@ -912,7 +915,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             null,
             currentClusterStateVersion.get(),
             inSyncIdsWithReplica,
-            newRoutingTable
+            newRoutingTable,
+            false
         );
     }
 
@@ -939,7 +943,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             ),
             currentClusterStateVersion.incrementAndGet(),
             inSyncIds,
-            newRoutingTable
+            newRoutingTable,
+            false
         );
     }
 

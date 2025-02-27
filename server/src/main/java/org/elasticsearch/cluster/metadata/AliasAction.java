@@ -251,16 +251,13 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
-            System.out.println("--> updating metadata for " + getIndex() + " to be renamed to " + destination);
             metadata.put(
                 IndexMetadata.builder(index)
-//                    .index(destination)
                     .putCustom(
                         MetadataIndexAliasesService.CUSTOM_RENAME_METADATA_KEY,
                         Map.of("original_name", getIndex(), "new_name", destination)
                     )
             );
-//                .remove(index.getIndex().getName());
             return true;
         }
     }

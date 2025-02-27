@@ -52,6 +52,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -696,6 +697,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    @SuppressForbidden(reason = "usage of unbatched task") // TODO add support for batching here
     private void renameIndices(ClusterChangedEvent event) {
         if (event.metadataChanged() == false) {
             return;
