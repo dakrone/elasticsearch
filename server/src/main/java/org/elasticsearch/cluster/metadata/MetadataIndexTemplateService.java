@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -1651,6 +1652,56 @@ public class MetadataIndexTemplateService {
         return Collections.unmodifiableList(mappings);
     }
 
+    /**
+     * Collect the given v2 template into a map of template name to mapping. The returned map is sorted based on order of composition.
+     */
+    public static Map<String, CompressedXContent> collectVerboseMappings(
+        final ComposableIndexTemplate template,
+        final String templateName,
+        final Map<String, ComponentTemplate> componentTemplates,
+        final String indexName
+    ) {
+        Objects.requireNonNull(template, "Composable index template must be provided");
+        // Check if this is a failure store index, and if it is, discard any template mappings. Failure store mappings are predefined.
+        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+            return Map.of(
+                "_failure_store",
+                DataStreamFailureStoreDefinition.DATA_STREAM_FAILURE_STORE_MAPPING,
+                "_data_stream_timestamp",
+                ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET
+            );
+        }
+        Map<String, CompressedXContent> mappings = new LinkedHashMap<>();
+        template.composedOf()
+            .forEach(
+                c -> Optional.ofNullable(componentTemplates.get(c))
+                    .map(ComponentTemplate::template)
+                    .map(Template::mappings)
+                    .ifPresent(m -> mappings.put(c, m))
+            );
+        // Add the actual index template's mappings, since it takes the highest precedence
+        Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(t -> mappings.put(templateName, t));
+        if (template.getDataStreamTemplate() != null && isDataStreamIndex(indexName)) {
+            // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
+            // straightforward as all backing indices are required to have a timestamp field
+            if (template.getDataStreamTemplate().isAllowCustomRouting()) {
+                mappings.put("_default_timestamp_routing", DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING);
+            } else {
+                mappings.put("_default_timestamp", DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING);
+            }
+        }
+
+        // Only include _timestamp mapping snippet if creating backing index.
+        if (isDataStreamIndex(indexName)) {
+            // Only if template has data stream definition this should be added and
+            // adding this template last, since _timestamp field should have highest precedence:
+            if (template.getDataStreamTemplate() != null) {
+                mappings.put("_data_stream_timestamp", ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_MAPPING_SNIPPET);
+            }
+        }
+        return Collections.unmodifiableMap(mappings);
+    }
+
     private static boolean isDataStreamIndex(String indexName) {
         return indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) || indexName.startsWith(DataStream.FAILURE_STORE_PREFIX);
     }
@@ -2002,10 +2053,64 @@ public class MetadataIndexTemplateService {
                     validateTimestampFieldMapping(mapperService.mappingLookup());
                 }
             } catch (Exception e) {
-                throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
+                try {
+                    Map<String, CompressedXContent> allMappings = collectVerboseMappings(
+                        template,
+                        templateName,
+                        project.componentTemplates(),
+                        indexName
+                    );
+                    validateMappingsIncrementally(indicesService, template, finalResolvedSettings, allMappings, templateName);
+                } catch (IllegalArgumentException realError) {
+                    throw realError;
+                } catch (Exception e2) {
+                    e.addSuppressed(e2);
+                    throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
+                }
             }
             return null;
         });
+    }
+
+    private static void validateMappingsIncrementally(
+        IndicesService indicesService,
+        ComposableIndexTemplate template,
+        Settings finalResolvedSettings,
+        Map<String, CompressedXContent> mappings,
+        String templateName
+    ) throws IOException {
+        final String temporaryIndexName = "validate-template-incr-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+        final IndexMetadata tmpIndexMetadata = IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings).build();
+        List<CompressedXContent> incrementalMappings = new ArrayList<>(mappings.size());
+        List<String> validatedMappings = new ArrayList<>();
+        // Loop through all the mappings, attempting validation of them in an incremental way
+        for (Map.Entry<String, CompressedXContent> mappingEntry : mappings.entrySet()) {
+            validatedMappings.add(mappingEntry.getKey());
+            incrementalMappings.add(mappingEntry.getValue());
+            logger.info("--> validating incrementally for {}, size: {}", mappingEntry.getKey(), incrementalMappings.size());
+            indicesService.withTempIndexService(tmpIndexMetadata, tempIndexService -> {
+                // Parse mappings to ensure they are valid after being composed
+                try (MapperService mapperService = tempIndexService.mapperService()) {
+                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, incrementalMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+                    if (template.getDataStreamTemplate() != null) {
+                        validateTimestampFieldMapping(mapperService.mappingLookup());
+                    }
+                } catch (Exception e) {
+                    throw new IllegalArgumentException(
+                        "invalid composite mappings for ["
+                            + templateName
+                            + "], mappings from templates "
+                            + validatedMappings.subList(0, Math.max(0, validatedMappings.size() - 1))
+                            + " applied correctly, but after applying mappings from ["
+                            + validatedMappings.getLast()
+                            + "] the composite mappings are invalid",
+                        e
+                    );
+                }
+                return null;
+            });
+            logger.info("--> template [{}] validates correctly", validatedMappings.getLast());
+        }
     }
 
     public static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)

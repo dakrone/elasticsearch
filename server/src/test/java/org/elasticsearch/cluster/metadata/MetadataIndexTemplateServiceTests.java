@@ -2097,7 +2097,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         assertNotNull(e.getCause());
-        assertThat(e.getCause().getMessage(), containsString("invalid composite mappings for [my-template]"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "invalid composite mappings for [my-template], mappings from templates [c1, c2] applied correctly, but after applying mappings from [my-template] the composite mappings are invalid"
+            )
+        );
 
         assertNotNull(e.getCause().getCause());
         assertThat(
