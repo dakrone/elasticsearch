@@ -2163,6 +2163,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Syntactic sugar for:
+     * <pre>
+     *   return client().prepareIndex(index).setId(id).setCreate(true).setSource(source).get();
+     * </pre>
+     * <p>
+     * where source is a JSON String.
+     */
+    protected final DocWriteResponse create(String index, String id, String source) {
+        return prepareIndex(index).setId(id).setCreate(true).setSource(source, XContentType.JSON).get();
+    }
+
+    /**
      * Waits for relocations and refreshes all indices in the cluster.
      *
      * @see #waitForRelocation()

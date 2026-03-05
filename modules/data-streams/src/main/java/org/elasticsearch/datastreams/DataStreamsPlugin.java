@@ -220,7 +220,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         );
 
         // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
-        List<DlmAction> dlmActions = List.of();
+        List<DlmAction> dlmActions = allDLMActions();
 
         verifyActions(dlmActions);
 
@@ -246,6 +246,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;
+    }
+
+    /**
+     * Return an ordered list of all DLM actions. Order matters - they will be executed in the order they are listed for a given index.
+     */
+    protected List<DlmAction> allDLMActions() {
+        return List.of();
     }
 
     // visible for testing
