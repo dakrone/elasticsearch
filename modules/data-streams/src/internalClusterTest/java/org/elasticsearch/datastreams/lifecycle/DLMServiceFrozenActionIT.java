@@ -123,7 +123,9 @@ public class DLMServiceFrozenActionIT extends ESIntegTestCase {
     }
 
     private void addIndexTemplate(final String dataStreamName) {
-        TransportPutComposableIndexTemplateAction.Request req = new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "-template");
+        TransportPutComposableIndexTemplateAction.Request req = new TransportPutComposableIndexTemplateAction.Request(
+            dataStreamName + "-template"
+        );
         req.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName))
@@ -206,7 +208,11 @@ public class DLMServiceFrozenActionIT extends ESIntegTestCase {
         assertBusy(() -> {
             try {
                 logger.info("--> checking segment count of [{}]", indexName);
-                IndicesStatsResponse stats = client().admin().indices().stats(new IndicesStatsRequest().segments(true)).get();
+                IndicesStatsResponse stats = client().admin()
+                    .indices()
+                    .stats(new IndicesStatsRequest().indices(indexName).clear().segments(true))
+                    .get();
+                assertTrue("found no shard stats for given index " + indexName, stats.getShards().length > 0);
                 for (ShardStats shardStats : stats.getShards()) {
                     assertNotNull(shardStats.getStats().getSegments());
                     long segCount = shardStats.getStats().getSegments().getCount();
