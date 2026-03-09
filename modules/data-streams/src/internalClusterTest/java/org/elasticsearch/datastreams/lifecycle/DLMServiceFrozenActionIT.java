@@ -205,6 +205,7 @@ public class DLMServiceFrozenActionIT extends ESIntegTestCase {
     }
 
     private void assertSingleSegmentIndex(final String indexName) throws Exception {
+        flushAndRefresh(indexName);
         assertBusy(() -> {
             try {
                 logger.info("--> checking segment count of [{}]", indexName);
@@ -216,7 +217,11 @@ public class DLMServiceFrozenActionIT extends ESIntegTestCase {
                 for (ShardStats shardStats : stats.getShards()) {
                     assertNotNull(shardStats.getStats().getSegments());
                     long segCount = shardStats.getStats().getSegments().getCount();
-                    logger.info("--> segment count: [{}]", segCount);
+                    String shardName = shardStats.getShardRouting().shardId()
+                        + "["
+                        + (shardStats.getShardRouting().primary() ? "p" : "r")
+                        + "]";
+                    logger.info("--> segment count for {}: [{}]", shardName, segCount);
                     assertTrue("expected 0 or 1 segments but was " + segCount, segCount <= 1);
                 }
             } catch (IndexNotFoundException e) {
