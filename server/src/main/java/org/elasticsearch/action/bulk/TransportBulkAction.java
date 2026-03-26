@@ -534,6 +534,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
 
         DataStream dataStream = indexAbstraction.getParentDataStream();
+        logger.info(
+            "--> data stream [{}] relax restrictions? [{}]",
+            dataStream.getName(),
+            dataStream.getDataStreamOptions().relaxRestrictions()
+        );
+        if (dataStream.getDataStreamOptions().relaxRestrictions()) {
+            return;
+        }
 
         // At this point with write op is targeting a backing index of a data stream directly,
         // so checking if write op is append-only and if so fail.

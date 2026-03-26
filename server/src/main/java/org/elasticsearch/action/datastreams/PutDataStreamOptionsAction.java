@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,8 +28,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 /**
  * Sets the data stream options that was provided in the request to the requested data streams.
  */
@@ -43,13 +40,13 @@ public class PutDataStreamOptionsAction {
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
         public interface Factory {
-            Request create(@Nullable DataStreamFailureStore dataStreamFailureStore);
+            Request create(@Nullable DataStreamFailureStore dataStreamFailureStore, @Nullable Boolean relaxRestrictions);
         }
 
         public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_options_request",
             false,
-            (args, factory) -> factory.create((DataStreamFailureStore) args[0])
+            (args, factory) -> factory.create((DataStreamFailureStore) args[0], (Boolean) args[1])
         );
 
         static {
@@ -59,6 +56,7 @@ public class PutDataStreamOptionsAction {
                 null,
                 new ParseField("failure_store")
             );
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("relax_restrictions"));
         }
 
         public static Request parseRequest(XContentParser parser, Factory factory) {
@@ -97,19 +95,16 @@ public class PutDataStreamOptionsAction {
             this.options = options;
         }
 
-        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, @Nullable DataStreamFailureStore failureStore) {
+        public Request(
+            TimeValue masterNodeTimeout,
+            TimeValue ackTimeout,
+            String[] names,
+            @Nullable DataStreamFailureStore failureStore,
+            @Nullable Boolean relaxRestrictions
+        ) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
-            this.options = new DataStreamOptions(failureStore);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (options.failureStore() == null) {
-                validationException = addValidationError("At least one option needs to be provided", validationException);
-            }
-            return validationException;
+            this.options = new DataStreamOptions(failureStore, relaxRestrictions);
         }
 
         public String[] getNames() {

@@ -48,11 +48,12 @@ public class RestPutDataStreamOptionsAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             PutDataStreamOptionsAction.Request putOptionsRequest = PutDataStreamOptionsAction.Request.parseRequest(
                 parser,
-                (failureStore) -> new PutDataStreamOptionsAction.Request(
+                (failureStore, relaxRestrictions) -> new PutDataStreamOptionsAction.Request(
                     getMasterNodeTimeout(request),
                     getAckTimeout(request),
                     Strings.splitStringByCommaToArray(request.param("name")),
-                    failureStore
+                    failureStore,
+                    relaxRestrictions
                 )
             );
             putOptionsRequest.indicesOptions(IndicesOptions.fromRequest(request, putOptionsRequest.indicesOptions()));
