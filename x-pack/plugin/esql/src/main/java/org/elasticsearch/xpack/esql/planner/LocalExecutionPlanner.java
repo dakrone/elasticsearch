@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.GroupedLimitOperator;
@@ -1013,7 +1014,16 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEval(EvalExec eval, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(eval.child(), context);
-
+        EvalOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+        if (parallelWorkerExecutor != null && EvalOperator.PARALLEL_EVAL_FEATURE_FLAG.isEnabled()) {
+            int workerCount = Math.clamp(esqlWorkerPoolSize / 2, 1, context.plannerSettings.parallelTopNMaxWorkers());
+            parallelWorkerConfig = new EvalOperator.ParallelWorkerConfig(
+                parallelWorkerExecutor,
+                workerCount,
+                2 * workerCount,
+                context.plannerSettings.parallelTopNPromotionThresholdRows()
+            );
+        }
         for (Alias field : eval.fields()) {
             var evaluatorSupplier = EvalMapper.toEvaluator(
                 context.foldCtx(),
@@ -1024,7 +1034,7 @@ public class LocalExecutionPlanner {
             );
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+            source = source.with(new EvalOperatorFactory(evaluatorSupplier, parallelWorkerConfig), layout.build());
         }
         return source;
     }

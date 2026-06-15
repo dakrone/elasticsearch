@@ -419,7 +419,8 @@ public class LookupExecutionPlanner {
             var evaluatorSupplier = EvalMapper.toEvaluator(foldCtx, field.child(), source.layout());
             Layout.Builder layout = source.layout().builder();
             layout.append(field.toAttribute());
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
+            // TODO: how should we pass in the parallel worker config here? do we want it for lookups?
+            source = source.with(new EvalOperatorFactory(evaluatorSupplier, null), layout.build());
         }
         return source;
     }

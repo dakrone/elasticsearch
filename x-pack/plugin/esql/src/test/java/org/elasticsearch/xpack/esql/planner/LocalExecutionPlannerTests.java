@@ -663,7 +663,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
             PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
-            PlannerSettings.PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY)
+            PlannerSettings.PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY),
+            PlannerSettings.PARALLEL_EVAL_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+            PlannerSettings.PARALLEL_EVAL_MAX_WORKERS.getDefault(Settings.EMPTY)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

@@ -92,7 +92,7 @@ public class EvalOperatorTests extends OperatorTestCase {
             public String toString() {
                 return "Addition[lhs=0, rhs=1]";
             }
-        });
+        }, null);
     }
 
     @Override
@@ -135,7 +135,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     public void testReadFromBlock() {
         var runner = new TestDriverRunner().builder(driverContext());
         runner.input(simpleInput(runner.blockFactory(), 10));
-        List<Page> results = runner.run(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)));
+        List<Page> results = runner.run(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0), null));
         Set<Long> found = new TreeSet<>();
         for (var page : results) {
             LongBlock lb = page.getBlock(2);

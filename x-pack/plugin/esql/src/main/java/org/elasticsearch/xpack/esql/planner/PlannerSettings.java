@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexSettings;
@@ -260,6 +261,35 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The number of rows the {@link org.elasticsearch.compute.operator.topn.TopNOperator} must
+     * accumulate before it promotes itself to a {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}
+     * backed by {@code esql_worker} threads. Lower values promote sooner; {@code 0} promotes after
+     * the very first row, which is useful in tests to force the parallel path.
+     */
+    public static final Setting<Long> PARALLEL_EVAL_PROMOTION_THRESHOLD_ROWS = Setting.longSetting(
+        "esql.parallel_eval_promotion_threshold_rows",
+        EvalOperator.DEFAULT_PROMOTION_THRESHOLD_ROWS,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Hard cap on the number of background worker threads a single
+     * {@link org.elasticsearch.compute.operator.ParallelEvalOperator} may use. The actual
+     * worker count is {@code max(1, min(this, esql_worker_pool_size / 2))}, so by default
+     * (Integer.MAX_VALUE) the operator uses half the thread pool, leaving the other half
+     * available for concurrent queries. Lower this to bound per-query thread usage.
+     */
+    public static final Setting<Integer> PARALLEL_EVAL_MAX_WORKERS = Setting.intSetting(
+        "esql.parallel_topn_max_workers",
+        Integer.MAX_VALUE,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -279,7 +309,9 @@ public class PlannerSettings {
             BYTES_REF_RAM_OVERESTIMATE_FACTOR,
             DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
             PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS,
-            PARALLEL_TOPN_MAX_WORKERS
+            PARALLEL_TOPN_MAX_WORKERS,
+            PARALLEL_EVAL_PROMOTION_THRESHOLD_ROWS,
+            PARALLEL_EVAL_MAX_WORKERS
         );
     }
 
@@ -332,6 +364,11 @@ public class PlannerSettings {
                 v -> settings.updateAndGet(s -> s.parallelTopNPromotionThresholdRows(v))
             );
             clusterSettings.initializeAndWatch(PARALLEL_TOPN_MAX_WORKERS, v -> settings.updateAndGet(s -> s.parallelTopNMaxWorkers(v)));
+            clusterSettings.initializeAndWatch(
+                PARALLEL_EVAL_PROMOTION_THRESHOLD_ROWS,
+                v -> settings.updateAndGet(s -> s.parallelEvalPromotionThresholdRows(v))
+            );
+            clusterSettings.initializeAndWatch(PARALLEL_EVAL_MAX_WORKERS, v -> settings.updateAndGet(s -> s.parallelEvalMaxWorkers(v)));
         }
 
         public PlannerSettings get() {
@@ -356,6 +393,8 @@ public class PlannerSettings {
     private final int docSequenceBytesRefFieldThreshold;
     private final long parallelTopNPromotionThresholdRows;
     private final int parallelTopNMaxWorkers;
+    private final long parallelEvalPromotionThresholdRows;
+    private final int parallelEvalMaxWorkers;
 
     /**
      * Defaults.
@@ -377,7 +416,9 @@ public class PlannerSettings {
         BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
         DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
         PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
-        PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY)
+        PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY),
+        PARALLEL_EVAL_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+        PARALLEL_EVAL_MAX_WORKERS.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -400,7 +441,9 @@ public class PlannerSettings {
         double bytesRefRamOverestimateFactor,
         int docSequenceBytesRefFieldThreshold,
         long parallelTopNPromotionThresholdRows,
-        int parallelTopNMaxWorkers
+        int parallelTopNMaxWorkers,
+        long parallelEvalPromotionThresholdRows,
+        int parallelEvalMaxWorkers
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -419,6 +462,8 @@ public class PlannerSettings {
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
         this.parallelTopNPromotionThresholdRows = parallelTopNPromotionThresholdRows;
         this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
+        this.parallelEvalPromotionThresholdRows = parallelEvalPromotionThresholdRows;
+        this.parallelEvalMaxWorkers = parallelEvalMaxWorkers;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -439,7 +484,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -465,7 +512,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -491,7 +540,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -531,7 +582,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -557,7 +610,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -583,7 +638,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -609,7 +666,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -642,7 +701,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -671,7 +732,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -700,7 +763,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -726,7 +791,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -752,7 +819,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -778,7 +847,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -804,7 +875,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -830,7 +903,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -856,7 +931,9 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
@@ -882,12 +959,70 @@ public class PlannerSettings {
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
-            parallelTopNMaxWorkers
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
         );
     }
 
     public int parallelTopNMaxWorkers() {
         return parallelTopNMaxWorkers;
+    }
+
+    public PlannerSettings parallelEvalPromotionThresholdRows(long parallelEvalPromotionThresholdRows) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
+        );
+    }
+
+    public long parallelEvalPromotionThresholdRows() {
+        return parallelEvalPromotionThresholdRows;
+    }
+
+    public PlannerSettings parallelEvalMaxWorkers(int parallelEvalMaxWorkers) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            parallelEvalPromotionThresholdRows,
+            parallelEvalMaxWorkers
+        );
+    }
+
+    public int parallelEvalMaxWorkers() {
+        return parallelEvalMaxWorkers;
     }
 
 }

@@ -8,10 +8,14 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+
+import java.util.concurrent.Executor;
 
 /**
  * Evaluates functions for every position in the block, resulting in a
@@ -67,11 +71,25 @@ import org.elasticsearch.core.Releasables;
 public class EvalOperator extends AbstractPageMappingOperator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(EvalOperator.class);
 
-    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator) implements OperatorFactory {
+    public static final FeatureFlag PARALLEL_EVAL_FEATURE_FLAG = new FeatureFlag("parallel_eval");
+    public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;
+
+    /** Opts the operator into parallel workers; promotion is one-way once {@code promotionThresholdRows} is crossed. */
+    public record ParallelWorkerConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
+
+    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator, @Nullable ParallelWorkerConfig parallelWorkerConfig)
+        implements
+            OperatorFactory {
 
         @Override
-        public Operator get(DriverContext driverContext) {
-            return new EvalOperator(driverContext, evaluator.get(driverContext));
+        public EvalOperator get(DriverContext driverContext) {
+            return new EvalOperator(driverContext, evaluator.get(driverContext), this, parallelWorkerConfig);
+        }
+
+        @Override
+        public EvalOperator getWorkerOperator(DriverContext driverContext) {
+            // TODO: Is this fine?
+            return new EvalOperator(driverContext, evaluator.get(driverContext), null, null);
         }
 
         @Override
@@ -82,6 +100,10 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     private final DriverContext ctx;
     private final ExpressionEvaluator evaluator;
+    @Nullable
+    private final EvalOperatorFactory factory;
+    @Nullable
+    private final ParallelWorkerConfig workerConfig;
     /**
      * Cached {@link #toString()} representation. The evaluator tree is immutable after construction,
      * so its string form is deterministic. {@link Driver} reads this on every status update; caching
@@ -90,9 +112,20 @@ public class EvalOperator extends AbstractPageMappingOperator {
     private final String description;
 
     public EvalOperator(DriverContext ctx, ExpressionEvaluator evaluator) {
+        this(ctx, evaluator, null, null);
+    }
+
+    public EvalOperator(
+        DriverContext ctx,
+        ExpressionEvaluator evaluator,
+        @Nullable EvalOperatorFactory evalOperatorFactory,
+        @Nullable ParallelWorkerConfig parallelWorkerConfig
+    ) {
         this.ctx = ctx;
         this.evaluator = evaluator;
         this.description = getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
+        this.factory = evalOperatorFactory;
+        this.workerConfig = parallelWorkerConfig;
         ctx.breaker().addEstimateBytesAndMaybeBreak(BASE_RAM_BYTES_USED + evaluator.baseRamBytesUsed(), "ESQL");
     }
 
@@ -100,6 +133,10 @@ public class EvalOperator extends AbstractPageMappingOperator {
     protected Page process(Page page) {
         Block block = evaluator.eval(page);
         return page.appendBlock(block);
+    }
+
+    public ExpressionEvaluator getEvaluator() {
+        return this.evaluator;
     }
 
     @Override
