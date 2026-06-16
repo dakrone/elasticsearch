@@ -140,6 +140,20 @@ public class EvalOperator extends AbstractPageMappingOperator {
     }
 
     @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        if (workerConfig == null || factory == null) {
+            return this;
+        }
+        if (PARALLEL_EVAL_FEATURE_FLAG.isEnabled() == false) {
+            return this;
+        }
+        if (rowsReceived > workerConfig.promotionThresholdRows()) {
+            return new ParallelEvalOperator(workerConfig, driverContext, factory, this);
+        }
+        return this;
+    }
+
+    @Override
     public String toString() {
         return description;
     }

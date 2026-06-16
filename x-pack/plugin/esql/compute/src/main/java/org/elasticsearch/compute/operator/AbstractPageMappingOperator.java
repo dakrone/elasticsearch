@@ -39,7 +39,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
     /**
      * Count of rows this operator has received.
      */
-    private long rowsReceived;
+    protected long rowsReceived;
     /**
      * Count of rows this operator has emitted.
      */
